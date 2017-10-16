@@ -33,6 +33,7 @@
 #include "third_party/PMurHash.h"
 #include "diag.h"
 #include "assoc.h"
+#include "limits.h"
 #include <unicode/ucol.h>
 #include <trivia/config.h>
 
@@ -131,6 +132,48 @@ coll_bin_hash(const char *s, size_t s_len, uint32_t *ph, uint32_t *pcarry,
 	(void) coll;
 	PMurHash32_Process(ph, pcarry, s, s_len);
 	return s_len;
+}
+
+/** Get a compare hint of a string using ICU collation. */
+static uint64_t
+coll_icu_hint(const char *s, size_t s_len, struct coll *coll)
+{
+	UCharIterator itr;
+	uiter_setUTF8(&itr, s, s_len);
+	uint8_t buf[7];
+	uint32_t state[2] = {0, 0};
+	UErrorCode status = U_ZERO_ERROR;
+	int32_t got = ucol_nextSortKeyPart(coll->collator, &itr, state, buf,
+					   sizeof(buf), &status);
+	assert(got >= 0 && got <= 7);
+	uint64_t result = 0;
+	for (int32_t i = 0; i < got; i++) {
+		result <<= 9;
+		result |= 0x100;
+		result |= buf[i];
+	}
+	result <<= 9 * (7 - got);
+	return result;
+}
+
+/**
+ * Get a compare hint of a string using BINARY collation.
+ * Works similar to key_hint_string, read it's comment for more
+ * details.
+ */
+static uint64_t
+coll_bin_hint(const char *s, size_t s_len, struct coll *coll)
+{
+	(void)coll;
+	uint64_t result = 0;
+	uint32_t process_len = MIN(s_len, 7);
+	for (uint32_t i = 0; i < process_len; i++) {
+		result <<= 9;
+		result |= 0x100;
+		result |= s[i];
+	}
+	result <<= 9 * (7 - process_len);
+	return result;
 }
 
 /**
@@ -242,6 +285,7 @@ coll_icu_init_cmp(struct coll *coll, const struct coll_def *def)
 	}
 	coll->cmp = coll_icu_cmp;
 	coll->hash = coll_icu_hash;
+	coll->hint = coll_icu_hint;
 	return 0;
 }
 
@@ -332,6 +376,7 @@ coll_new(const struct coll_def *def)
 		coll->collator = NULL;
 		coll->cmp = coll_bin_cmp;
 		coll->hash = coll_bin_hash;
+		coll->hint = coll_bin_hint;
 		break;
 	default:
 		unreachable();

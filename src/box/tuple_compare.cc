@@ -1321,4 +1321,105 @@ tuple_compare_with_key_create(const struct key_def *def)
 	       compare_with_key_slowpath_funcs[cmp_func_idx];
 }
 
+static uint64_t
+key_hint_default(const char *key, struct key_def *key_def)
+{
+	(void)key;
+	(void)key_def;
+	return 0;
+}
+
+static uint64_t
+tuple_hint_default(const struct tuple *tuple, struct key_def *key_def)
+{
+	(void)tuple;
+	(void)key_def;
+	return 0;
+}
+
+static uint64_t
+key_hint_string(const char *key, struct key_def *key_def)
+{
+	assert(key != NULL);
+	(void)key_def;
+	assert(key_def->parts->type == FIELD_TYPE_STRING);
+	assert(mp_typeof(*key) == MP_STR);
+	uint32_t len;
+	const unsigned char *str =
+		(const unsigned char *)mp_decode_str(&key, &len);
+	uint64_t result = 0;
+	/*
+	 * Map the sequence of characters in the hint's bytes in
+	 * the reverse order: the first character will be mapped
+	 * in the highest byte of the number, etc.
+	 * One additional bit encodes the presence of the next
+	 * sign.
+	 * 0bCHARBYTEU CHARBYTEU CHARBYTEU ... CHARBYTE0
+	 * The sequence constructed in this way provides a
+	 * comparison transitivity of strings no longer than 7
+	 * bytes.
+	 */
+	uint32_t process_len = MIN(len, 7);
+	for (uint32_t i = 0; i < process_len; i++) {
+		result <<= 9;
+		result |= 0x100;
+		result |= str[i];
+	}
+	/*
+	 * If the length of the string is less than the 64-bit
+	 * hint can accommodate, the insignificant positions are
+	 * filled with 0.
+	 */
+	result <<= 9 * (7 - process_len);
+	return result;
+}
+
+static uint64_t
+tuple_hint_string(const struct tuple *tuple, struct key_def *key_def)
+{
+	const char *field = tuple_field_by_part(tuple, key_def->parts);
+	return field != NULL ? key_hint_string(field, key_def) : 0;
+}
+
+static uint64_t
+key_hint_string_coll(const char *key, struct key_def *key_def)
+{
+	assert(key != NULL);
+	assert(key_def->parts->type == FIELD_TYPE_STRING);
+	assert(mp_typeof(*key) == MP_STR);
+	assert(key_def->parts->coll != NULL);
+	uint32_t len;
+	const char *str = mp_decode_str(&key, &len);
+	return key_def->parts->coll->hint(str, len, key_def->parts->coll);
+}
+
+static uint64_t
+tuple_hint_string_coll(const struct tuple *tuple, struct key_def *key_def)
+{
+	const char *field = tuple_field_by_part(tuple, key_def->parts);
+	return field != NULL ? key_hint_string_coll(field, key_def) : 0;
+}
+
+void
+tuple_hint_set(struct key_def *def)
+{
+	def->key_hint = key_hint_default;
+	def->tuple_hint = tuple_hint_default;
+	if (key_part_is_nullable(def->parts))
+		return;
+	if (def->parts->type == FIELD_TYPE_STRING && def->parts->coll != NULL) {
+		def->key_hint = key_hint_string_coll;
+		def->tuple_hint = tuple_hint_string_coll;
+		return;
+	}
+	switch (def->parts->type) {
+	case FIELD_TYPE_STRING:
+		def->key_hint = key_hint_string;
+		def->tuple_hint = tuple_hint_string;
+		break;
+	default:
+		break;
+	};
+}
+
 /* }}} tuple_compare_with_key */

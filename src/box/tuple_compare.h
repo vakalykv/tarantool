@@ -67,6 +67,13 @@ tuple_compare_create(const struct key_def *key_def);
 tuple_compare_with_key_t
 tuple_compare_with_key_create(const struct key_def *key_def);
 
+/**
+ * Initialize tuple_hint() and key_hint() functions for the key_def.
+ * @param key_def key definition to set up.
+ */
+void
+tuple_hint_set(struct key_def *key_def);
+
 #if defined(__cplusplus)
 } /* extern "C" */
 #endif /* defined(__cplusplus) */
