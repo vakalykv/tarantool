@@ -60,6 +60,7 @@
 #include "box/lua/tuple.h"
 #include "box/lua/sql.h"
 #include "box/lua/key_def.h"
+#include "box/lua/merger.h"
 
 extern char session_lua[],
 	tuple_lua[],
@@ -314,6 +315,8 @@ box_lua_init(struct lua_State *L)
 	tarantool_lua_console_init(L);
 	lua_pop(L, 1);
 	luaopen_key_def(L);
+	lua_pop(L, 1);
+	luaopen_merger(L);
 	lua_pop(L, 1);
 
 	/* Load Lua extension */
