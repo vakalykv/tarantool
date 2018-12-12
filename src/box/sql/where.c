@@ -50,7 +50,7 @@
 static int whereLoopResize(sqlite3 *, WhereLoop *, int);
 
 /* Test variable that can be set to enable WHERE tracing */
-#ifdef WHERETRACE_ENABLED
+#ifdef SQLITE_DEBUG
 /***/ int sqlite3WhereTrace = 0; /* -1; */
 #endif
 
@@ -145,7 +145,7 @@ sqlite3WhereOkOnePass(WhereInfo * pWInfo, int *aiCur)
 	if (pWInfo->eOnePass == ONEPASS_MULTI) {
 		pWInfo->eOnePass = ONEPASS_OFF;
 	}
-#ifdef WHERETRACE_ENABLED
+#ifdef SQLITE_DEBUG
 	if (sqlite3WhereTrace && pWInfo->eOnePass != ONEPASS_OFF) {
 		sqlite3DebugPrintf("%s cursors: %d %d\n",
 				   pWInfo->eOnePass ==
@@ -1492,7 +1492,7 @@ whereRangeScanEst(Parse * pParse,	/* Parsing & code generating context */
 		nNew = 10;
 	if (nNew < nOut)
 		nOut = nNew;
-#if defined(WHERETRACE_ENABLED)
+#if defined(SQLITE_DEBUG)
 	if (pLoop->nOut > nOut) {
 		WHERETRACE(0x10, ("Range scan lowers nOut from %d to %d\n",
 				  pLoop->nOut, nOut));
@@ -1606,7 +1606,7 @@ whereInScanEst(Parse * pParse,	/* Parsing & code generating context */
 	return rc;
 }
 
-#ifdef WHERETRACE_ENABLED
+#ifdef SQLITE_DEBUG
 /*
  * Print the content of a WhereTerm object
  */
@@ -1650,9 +1650,7 @@ whereTermPrint(WhereTerm * pTerm, int iTerm)
 		sqlite3TreeViewExpr(0, pTerm->pExpr, 0);
 	}
 }
-#endif
 
-#ifdef WHERETRACE_ENABLED
 /*
  * Show the complete content of a WhereClause
  */
@@ -1664,9 +1662,7 @@ sqlite3WhereClausePrint(WhereClause * pWC)
 		whereTermPrint(&pWC->a[i], i);
 	}
 }
-#endif
 
-#ifdef WHERETRACE_ENABLED
 /*
  * Print a WhereLoop object for debugging purposes
  */
@@ -1678,12 +1674,10 @@ whereLoopPrint(WhereLoop * p, WhereClause * pWC)
 	struct SrcList_item *pItem = pWInfo->pTabList->a + p->iTab;
 	Table *pTab = pItem->pTab;
 	Bitmask mAll = (((Bitmask) 1) << (nb * 4)) - 1;
-#ifdef SQLITE_DEBUG
 	sqlite3DebugPrintf("%c%2d.%0*llx.%0*llx", p->cId,
 			   p->iTab, nb, p->maskSelf, nb, p->prereq & mAll);
 	sqlite3DebugPrintf(" %12s",
 			   pItem->zAlias ? pItem->zAlias : pTab->def->name);
-#endif
 	const char *zName;
 	if (p->index_def != NULL && (zName = p->index_def->name) != NULL) {
 		if (strncmp(zName, "sql_autoindex_", 17) == 0) {
@@ -2044,14 +2038,14 @@ whereLoopInsert(WhereLoopBuilder * pBuilder, WhereLoop * pTemplate)
 	 */
 	if (pBuilder->pOrSet != 0) {
 		if (pTemplate->nLTerm) {
-#ifdef WHERETRACE_ENABLED
+#ifdef SQLITE_DEBUG
 			u16 n = pBuilder->pOrSet->n;
 			int x =
 #endif
 			    whereOrInsert(pBuilder->pOrSet, pTemplate->prereq,
 					  pTemplate->rRun,
 					  pTemplate->nOut);
-#ifdef WHERETRACE_ENABLED		/* 0x8 */
+#ifdef SQLITE_DEBUG		/* 0x8 */
 			if (sqlite3WhereTrace & 0x8) {
 				sqlite3DebugPrintf(x ? "   or-%d:  " :
 						   "   or-X:  ", n);
@@ -2071,7 +2065,7 @@ whereLoopInsert(WhereLoopBuilder * pBuilder, WhereLoop * pTemplate)
 		/* There already exists a WhereLoop on the list that is better
 		 * than pTemplate, so just ignore pTemplate
 		 */
-#ifdef WHERETRACE_ENABLED		/* 0x8 */
+#ifdef SQLITE_DEBUG		/* 0x8 */
 		if (sqlite3WhereTrace & 0x8) {
 			sqlite3DebugPrintf("   skip: ");
 			whereLoopPrint(pTemplate, pBuilder->pWC);
@@ -2086,7 +2080,7 @@ whereLoopInsert(WhereLoopBuilder * pBuilder, WhereLoop * pTemplate)
 	 * with pTemplate[] if p[] exists, or if p==NULL then allocate a new
 	 * WhereLoop and insert it.
 	 */
-#ifdef WHERETRACE_ENABLED		/* 0x8 */
+#ifdef SQLITE_DEBUG		/* 0x8 */
 	if (sqlite3WhereTrace & 0x8) {
 		if (p != 0) {
 			sqlite3DebugPrintf("replace: ");
@@ -2118,7 +2112,7 @@ whereLoopInsert(WhereLoopBuilder * pBuilder, WhereLoop * pTemplate)
 			if (pToDel == 0)
 				break;
 			*ppTail = pToDel->pNextLoop;
-#ifdef WHERETRACE_ENABLED		/* 0x8 */
+#ifdef SQLITE_DEBUG		/* 0x8 */
 			if (sqlite3WhereTrace & 0x8) {
 				sqlite3DebugPrintf(" delete: ");
 				whereLoopPrint(pToDel, pBuilder->pWC);
@@ -3006,7 +3000,7 @@ whereLoopAddOr(WhereLoopBuilder * pBuilder, Bitmask mPrereq, Bitmask mUnusable)
 					continue;
 				}
 				sCur.n = 0;
-#ifdef WHERETRACE_ENABLED
+#ifdef SQLITE_DEBUG
 				WHERETRACE(0x200,
 					   ("OR-term %d of %p has %d subterms:\n",
 					    (int)(pOrTerm - pOrWC->a), pTerm,
@@ -3504,7 +3498,7 @@ sqlite3WhereIsSorted(WhereInfo * pWInfo)
 	return pWInfo->sorted;
 }
 
-#ifdef WHERETRACE_ENABLED
+#ifdef SQLITE_DEBUG
 /* For debugging use only: */
 static const char *
 wherePathName(WherePath * pPath, int nLoop, WhereLoop * pLast)
@@ -3772,7 +3766,7 @@ wherePathSolver(WhereInfo * pWInfo, LogEst nRowEst)
 						 * paths currently in the best-so-far buffer.  So discard
 						 * this candidate as not viable.
 						 */
-#ifdef WHERETRACE_ENABLED	/* 0x4 */
+#ifdef SQLITE_DEBUG	/* 0x4 */
 						if (sqlite3WhereTrace & 0x4) {
 							sqlite3DebugPrintf("Skip   %s cost=%-3d,%3d order=%c\n",
 									   wherePathName(pFrom, iLoop,
@@ -3795,7 +3789,7 @@ wherePathSolver(WhereInfo * pWInfo, LogEst nRowEst)
 						jj = mxI;
 					}
 					pTo = &aTo[jj];
-#ifdef WHERETRACE_ENABLED	/* 0x4 */
+#ifdef SQLITE_DEBUG	/* 0x4 */
 					if (sqlite3WhereTrace & 0x4) {
 						sqlite3DebugPrintf
 						    ("New    %s cost=%-3d,%3d order=%c\n",
@@ -3815,7 +3809,7 @@ wherePathSolver(WhereInfo * pWInfo, LogEst nRowEst)
 					if (pTo->rCost < rCost
 					    || (pTo->rCost == rCost
 						&& pTo->nRow <= nOut)) {
-#ifdef WHERETRACE_ENABLED	/* 0x4 */
+#ifdef SQLITE_DEBUG	/* 0x4 */
 						if (sqlite3WhereTrace & 0x4) {
 							sqlite3DebugPrintf("Skip   %s cost=%-3d,%3d order=%c",
 									   wherePathName(pFrom, iLoop,
@@ -3840,7 +3834,7 @@ wherePathSolver(WhereInfo * pWInfo, LogEst nRowEst)
 					/* Control reaches here if the candidate path is better than the
 					 * pTo path.  Replace pTo with the candidate.
 					 */
-#ifdef WHERETRACE_ENABLED	/* 0x4 */
+#ifdef SQLITE_DEBUG	/* 0x4 */
 					if (sqlite3WhereTrace & 0x4) {
 						sqlite3DebugPrintf("Update %s cost=%-3d,%3d order=%c",
 								   wherePathName(pFrom, iLoop,
@@ -3889,7 +3883,7 @@ wherePathSolver(WhereInfo * pWInfo, LogEst nRowEst)
 			}
 		}
 
-#ifdef WHERETRACE_ENABLED	/* >=2 */
+#ifdef SQLITE_DEBUG	/* >=2 */
 		if (sqlite3WhereTrace & 0x02) {
 			sqlite3DebugPrintf("---- after round %d ----\n", iLoop);
 			for (ii = 0, pTo = aTo; ii < nTo; ii++, pTo++) {
@@ -4249,7 +4243,7 @@ sqlite3WhereBegin(Parse * pParse,	/* The parser context */
 	u8 bFordelete = 0;	/* OPFLAG_FORDELETE or zero, as appropriate */
 	struct session *user_session = current_session();
 
-#ifdef WHERETRACE_ENABLED
+#ifdef SQLITE_DEBUG
 	if (user_session->sql_flags & SQLITE_WhereTrace)
 		sqlite3WhereTrace = 0xfff;
 	else
@@ -4412,7 +4406,7 @@ sqlite3WhereBegin(Parse * pParse,	/* The parser context */
 	}
 
 	/* Construct the WhereLoop objects */
-#if defined(WHERETRACE_ENABLED)
+#if defined(SQLITE_DEBUG)
 	if (sqlite3WhereTrace & 0xffff) {
 		sqlite3DebugPrintf("*** Optimizer Start *** (wctrlFlags: 0x%x",
 				   wctrlFlags);
@@ -4431,7 +4425,7 @@ sqlite3WhereBegin(Parse * pParse,	/* The parser context */
 		if (rc)
 			goto whereBeginError;
 
-#ifdef WHERETRACE_ENABLED
+#ifdef SQLITE_DEBUG
 		if (sqlite3WhereTrace) {	/* Display all of the WhereLoop objects */
 			WhereLoop *p;
 			int i;
@@ -4462,7 +4456,7 @@ sqlite3WhereBegin(Parse * pParse,	/* The parser context */
 	if (pParse->nErr || NEVER(db->mallocFailed)) {
 		goto whereBeginError;
 	}
-#ifdef WHERETRACE_ENABLED
+#ifdef SQLITE_DEBUG
 	if (sqlite3WhereTrace) {
 		sqlite3DebugPrintf("---- Solution nRow=%d", pWInfo->nRowOut);
 		if (pWInfo->nOBSat > 0) {
