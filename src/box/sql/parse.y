@@ -168,7 +168,10 @@ cmd ::= ROLLBACK TO savepoint_opt nm(X). {
 //
 cmd ::= create_table create_table_args.
 create_table ::= createkw TABLE ifnotexists(E) nm(Y). {
-   sqlite3StartTable(pParse,&Y,E);
+  alter_entity_def_init(&pParse->create_table_def.base.base, NULL);
+  create_entity_def_init(&pParse->create_table_def.base, Y, E);
+  create_table_def_init(&pParse->create_table_def);
+  sqlite3StartTable(pParse);
 }
 createkw(A) ::= CREATE(A).  {disableLookaside(pParse);}
 
@@ -178,6 +181,7 @@ ifnotexists(A) ::= IF NOT EXISTS. {A = 1;}
 
 create_table_args ::= LP columnlist RP(E). {
   sqlite3EndTable(pParse,&E,0);
+  create_table_def_destroy(&pParse->create_table_def);
 }
 create_table_args ::= AS select(S). {
   sqlite3EndTable(pParse,0,S);
@@ -237,8 +241,15 @@ nm(A) ::= id(A). {
 carglist ::= carglist cconsdef.
 carglist ::= .
 cconsdef ::= cconsname ccons.
-cconsname ::= CONSTRAINT nm(X).           {pParse->constraintName = X;}
-cconsname ::= .                           {pParse->constraintName.n = 0;}
+cconsname ::= cconsname_start cconsname_parse .
+cconsname_start ::= . {
+  /* Prepare base members for re-usage. */
+  memset(&pParse->create_index_def, 0, sizeof(struct create_constraint_def));
+}
+cconsname_parse ::= CONSTRAINT nm(X). {
+  create_entity_def_init(&pParse->create_index_def.base.base, X, false);
+}
+cconsname_parse ::= .
 ccons ::= DEFAULT term(X).            {sqlite3AddDefaultValue(pParse,&X);}
 ccons ::= DEFAULT LP expr(X) RP.      {sqlite3AddDefaultValue(pParse,&X);}
 ccons ::= DEFAULT PLUS term(X).       {sqlite3AddDefaultValue(pParse,&X);}
@@ -260,14 +271,29 @@ ccons ::= NULL onconf(R).        {
         sql_column_add_nullable_action(pParse, R);
 }
 ccons ::= NOT NULL onconf(R).    {sql_column_add_nullable_action(pParse, R);}
-ccons ::= PRIMARY KEY sortorder(Z) autoinc(I).
-                                 {sqlite3AddPrimaryKey(pParse,0,I,Z);}
-ccons ::= UNIQUE.                {sql_create_index(pParse,0,0,0,0,
-                                                   SORT_ORDER_ASC, false,
-                                                   SQL_INDEX_TYPE_CONSTRAINT_UNIQUE);}
-ccons ::= CHECK LP expr(X) RP.   {sql_add_check_constraint(pParse,&X);}
-ccons ::= REFERENCES nm(T) eidlist_opt(TA) refargs(R).
-                                 {sql_create_foreign_key(pParse, NULL, NULL, NULL, &T, TA, false, R);}
+ccons ::= PRIMARY KEY sortorder(Z) autoinc(I). {
+  pParse->create_table_def.has_autoinc = I;
+  create_index_def_init(&pParse->create_index_def, NULL,
+                        SQL_INDEX_TYPE_CONSTRAINT_PK, Z);
+  sqlite3AddPrimaryKey(pParse);
+}
+ccons ::= UNIQUE. {
+  create_index_def_init(&pParse->create_index_def, NULL,
+                        SQL_INDEX_TYPE_CONSTRAINT_UNIQUE, SORT_ORDER_ASC);
+  sql_create_index(pParse);
+}
+
+ccons ::= check_constraint_def .
+
+check_constraint_def ::= CHECK LP expr(X) RP. {
+  create_ck_def_init(&pParse->create_ck_def, &X);
+  sql_add_check_constraint(pParse);
+}
+
+ccons ::= REFERENCES nm(T) eidlist_opt(TA) refargs(R). {
+  create_fk_def_init(&pParse->create_fk_def, NULL, &T, TA, R);
+  sql_create_foreign_key(pParse);
+}
 ccons ::= defer_subclause(D).    {fkey_change_defer_mode(pParse, D);}
 ccons ::= COLLATE id(C).        {sqlite3AddCollateType(pParse, &C);}
 
@@ -307,20 +333,24 @@ init_deferred_pred_opt(A) ::= .                       {A = 0;}
 init_deferred_pred_opt(A) ::= INITIALLY DEFERRED.     {A = 1;}
 init_deferred_pred_opt(A) ::= INITIALLY IMMEDIATE.    {A = 0;}
 
-tconsdef ::= tconsname tcons.
-tconsname ::= CONSTRAINT nm(X).      {pParse->constraintName = X;}
-tconsname ::= .                      {pParse->constraintName.n = 0;}
-tcons ::= PRIMARY KEY LP sortlist(X) autoinc(I) RP.
-                                 {sqlite3AddPrimaryKey(pParse,X,I,0);}
-tcons ::= UNIQUE LP sortlist(X) RP.
-                                 {sql_create_index(pParse,0,0,X,0,
-                                                   SORT_ORDER_ASC,false,
-                                                   SQL_INDEX_TYPE_CONSTRAINT_UNIQUE);}
-tcons ::= CHECK LP expr(E) RP onconf.
-                                 {sql_add_check_constraint(pParse,&E);}
+tconsdef ::= cconsname tcons.
+tcons ::= PRIMARY KEY LP sortlist(X) autoinc(I) RP. {
+  pParse->create_table_def.has_autoinc = I;
+  create_index_def_init(&pParse->create_index_def, X,
+                        SQL_INDEX_TYPE_CONSTRAINT_PK, SORT_ORDER_ASC);
+  sqlite3AddPrimaryKey(pParse);
+}
+tcons ::= UNIQUE LP sortlist(X) RP. {
+  create_index_def_init(&pParse->create_index_def, X,
+                        SQL_INDEX_TYPE_CONSTRAINT_UNIQUE, SORT_ORDER_ASC);
+  sql_create_index(pParse);
+}
+tcons ::= check_constraint_def .
 tcons ::= FOREIGN KEY LP eidlist(FA) RP
           REFERENCES nm(T) eidlist_opt(TA) refargs(R) defer_subclause_opt(D). {
-    sql_create_foreign_key(pParse, NULL, NULL, FA, &T, TA, D, R);
+  create_constraint_def_init(&pParse->create_fk_def.base, D);
+  create_fk_def_init(&pParse->create_fk_def, FA, &T, TA, R);
+  sql_create_foreign_key(pParse);
 }
 %type defer_subclause_opt {int}
 defer_subclause_opt(A) ::= .                    {A = 0;}
@@ -343,9 +373,21 @@ resolvetype(A) ::= REPLACE.                  {A = ON_CONFLICT_ACTION_REPLACE;}
 
 ////////////////////////// The DROP TABLE /////////////////////////////////////
 //
-cmd ::= DROP TABLE ifexists(E) fullname(X). {
-  sql_drop_table(pParse, X, 0, E);
+
+cmd ::= drop_start(X) drop_table . {
+  sql_drop_table(pParse, X);
 }
+
+drop_table ::= ifexists(E) fullname(X) . {
+  alter_entity_def_init(&pParse->drop_entity_def.base, X);
+  drop_entity_def_init(&pParse->drop_entity_def, (struct Token) {}, E,
+                       ENTITY_TYPE_TABLE);
+}
+
+%type drop_start {bool}
+drop_start(X) ::= DROP VIEW . { X = true; }
+drop_start(X) ::= DROP TABLE . { X = false; }
+
 %type ifexists {int}
 ifexists(A) ::= IF EXISTS.   {A = 1;}
 ifexists(A) ::= .            {A = 0;}
@@ -354,13 +396,12 @@ ifexists(A) ::= .            {A = 0;}
 //
 cmd ::= createkw(X) VIEW ifnotexists(E) nm(Y) eidlist_opt(C)
           AS select(S). {
-  if (!pParse->parse_only)
-    sql_create_view(pParse, &X, &Y, C, S, E);
-  else
+  if (!pParse->parse_only) {
+    create_entity_def_init(&pParse->create_table_def.base, Y, E);
+    sql_create_view(pParse, &X, C, S);
+  } else {
     sql_store_select(pParse, S);
-}
-cmd ::= DROP VIEW ifexists(E) fullname(X). {
-  sql_drop_table(pParse, X, 1, E);
+  }
 }
 
 //////////////////////// The SELECT statement /////////////////////////////////
@@ -1198,10 +1239,14 @@ paren_exprlist(A) ::= LP exprlist(X) RP.  {A = X;}
 
 ///////////////////////////// The CREATE INDEX command ///////////////////////
 //
-cmd ::= createkw(S) uniqueflag(U) INDEX ifnotexists(NE) nm(X)
+cmd ::= createkw uniqueflag(U) INDEX ifnotexists(NE) nm(X)
         ON nm(Y) LP sortlist(Z) RP. {
-  sql_create_index(pParse, &X, sqlite3SrcListAppend(pParse->db,0,&Y), Z, &S,
-                   SORT_ORDER_ASC, NE, U);
+  alter_entity_def_init((struct alter_entity_def *) &pParse->create_index_def,
+                        sqlite3SrcListAppend(pParse->db, 0, &Y));
+  create_entity_def_init((struct create_entity_def *) &pParse->create_index_def,
+                         X, NE);
+  create_index_def_init(&pParse->create_index_def, Z, U, SORT_ORDER_ASC);
+  sql_create_index(pParse);
 }
 
 %type uniqueflag {int}
@@ -1263,8 +1308,10 @@ collate(C) ::= COLLATE id.   {C = 1;}
 
 ///////////////////////////// The DROP INDEX command /////////////////////////
 //
-cmd ::= DROP INDEX ifexists(E) fullname(X) ON nm(Y).   {
-    sql_drop_index(pParse, X, &Y, E);
+cmd ::= DROP INDEX ifexists(E) nm(X) ON fullname(Y).   {
+  alter_entity_def_init(&pParse->drop_entity_def.base, Y);
+  drop_entity_def_init(&pParse->drop_entity_def, X, E, ENTITY_TYPE_INDEX);
+  sql_drop_index(pParse);
 }
 
 ///////////////////////////// The PRAGMA command /////////////////////////////
@@ -1315,7 +1362,11 @@ cmd ::= createkw trigger_decl(A) BEGIN trigger_cmd_list(S) END(Z). {
 trigger_decl(A) ::= TRIGGER ifnotexists(NOERR) nm(B)
                     trigger_time(C) trigger_event(D)
                     ON fullname(E) foreach_clause when_clause(G). {
-  sql_trigger_begin(pParse, &B, C, D.a, D.b, E, G, NOERR);
+  struct create_trigger_def *trigger_def = &pParse->create_trigger_def;
+  alter_entity_def_init((struct alter_entity_def *) trigger_def, E);
+  create_entity_def_init((struct create_entity_def *) trigger_def, B, NOERR);
+  create_trigger_def_init(trigger_def, C, D.a, D.b, G);
+  sql_trigger_begin(pParse);
   A = B; /*A-overwrites-T*/
 }
 
@@ -1425,7 +1476,10 @@ raisetype(A) ::= FAIL.      {A = ON_CONFLICT_ACTION_FAIL;}
 
 ////////////////////////  DROP TRIGGER statement //////////////////////////////
 cmd ::= DROP TRIGGER ifexists(NOERR) fullname(X). {
-  sql_drop_trigger(pParse,X,NOERR);
+  alter_entity_def_init(&pParse->drop_entity_def.base, X);
+  drop_entity_def_init(&pParse->drop_entity_def, (struct Token){}, NOERR,
+                       ENTITY_TYPE_TRIGGER);
+  sql_drop_trigger(pParse);
 }
 
 /////////////////////////////////// ANALYZE ///////////////////////////////////
@@ -1434,17 +1488,25 @@ cmd ::= ANALYZE nm(X).          {sqlite3Analyze(pParse, &X);}
 
 //////////////////////// ALTER TABLE table ... ////////////////////////////////
 cmd ::= ALTER TABLE fullname(X) RENAME TO nm(Z). {
-  sql_alter_table_rename(pParse,X,&Z);
+  alter_entity_def_init(&pParse->rename_entity_def.base, X);
+  rename_entity_def_init(&pParse->rename_entity_def, Z);
+  sql_alter_table_rename(pParse);
 }
 
 cmd ::= ALTER TABLE fullname(X) ADD CONSTRAINT nm(Z) FOREIGN KEY
         LP eidlist(FA) RP REFERENCES nm(T) eidlist_opt(TA) refargs(R)
         defer_subclause_opt(D). {
-    sql_create_foreign_key(pParse, X, &Z, FA, &T, TA, D, R);
+  alter_entity_def_init((struct alter_entity_def *) &pParse->create_fk_def, X);
+  create_entity_def_init(&pParse->create_fk_def.base.base, Z, false);
+  create_constraint_def_init(&pParse->create_fk_def.base, D);
+  create_fk_def_init(&pParse->create_fk_def, FA, &T, TA, R);
+  sql_create_foreign_key(pParse);
 }
 
 cmd ::= ALTER TABLE fullname(X) DROP CONSTRAINT nm(Z). {
-    sql_drop_foreign_key(pParse, X, &Z);
+  alter_entity_def_init(&pParse->drop_entity_def.base, X);
+  drop_entity_def_init(&pParse->drop_entity_def, Z, false, ENTITY_TYPE_FK);
+  sql_drop_foreign_key(pParse);
 }
 
 //////////////////////// COMMON TABLE EXPRESSIONS ////////////////////////////

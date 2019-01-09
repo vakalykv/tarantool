@@ -383,18 +383,16 @@ sql_table_new(Parse *parser, char *name)
  * when the "TEMP" or "TEMPORARY" keyword occurs in between
  * CREATE and TABLE.
  *
- * The new table record is initialized and put in pParse->pNewTable.
+ * The new table record is initialized and put in pParse->create_table_def.
  * As more of the CREATE TABLE statement is parsed, additional action
  * routines will be called to add more information to this record.
  * At the end of the CREATE TABLE statement, the sqlite3EndTable() routine
  * is called to complete the construction of the new table record.
  *
  * @param pParse Parser context.
- * @param pName1 First part of the name of the table or view.
- * @param noErr Do nothing if table already exists.
  */
 void
-sqlite3StartTable(Parse *pParse, Token *pName, int noErr)
+sqlite3StartTable(struct Parse *pParse)
 {
 	Table *pTable;
 	char *zName = 0;	/* The name of the new table */
@@ -403,8 +401,8 @@ sqlite3StartTable(Parse *pParse, Token *pName, int noErr)
 	if (v == NULL)
 		goto cleanup;
 	sqlite3VdbeCountChanges(v);
-
-	zName = sqlite3NameFromToken(db, pName);
+	struct Token name = pParse->create_table_def.base.name;
+	zName = sqlite3NameFromToken(db, &name);
 
 	if (zName == 0)
 		return;
@@ -413,7 +411,7 @@ sqlite3StartTable(Parse *pParse, Token *pName, int noErr)
 
 	struct space *space = space_by_name(zName);
 	if (space != NULL) {
-		if (!noErr) {
+		if (!pParse->create_table_def.base.if_not_exist) {
 			sqlite3ErrorMsg(pParse, "table %s already exists",
 					zName);
 		} else {
@@ -426,8 +424,7 @@ sqlite3StartTable(Parse *pParse, Token *pName, int noErr)
 	if (pTable == NULL)
 		goto cleanup;
 
-	assert(pParse->pNewTable == 0);
-	pParse->pNewTable = pTable;
+	pParse->create_table_def.new_table = pTable;
 
 	if (!db->init.busy && (v = sqlite3GetVdbe(pParse)) != 0)
 		sql_set_multi_write(pParse, true);
@@ -516,7 +513,7 @@ sqlite3AddColumn(Parse * pParse, Token * pName, struct type_def *type_def)
 	int i;
 	char *z;
 	sqlite3 *db = pParse->db;
-	if ((p = pParse->pNewTable) == 0)
+	if ((p = pParse->create_table_def.new_table) == NULL)
 		return;
 #if SQLITE_MAX_COLUMN
 	if ((int)p->def->field_count + 1 > db->aLimit[SQLITE_LIMIT_COLUMN]) {
@@ -565,14 +562,13 @@ sqlite3AddColumn(Parse * pParse, Token * pName, struct type_def *type_def)
 	column_def->affinity = type_def->type;
 	column_def->type = sql_affinity_to_field_type(column_def->affinity);
 	p->def->field_count++;
-	pParse->constraintName.n = 0;
 }
 
 void
 sql_column_add_nullable_action(struct Parse *parser,
 			       enum on_conflict_action nullable_action)
 {
-	struct Table *p = parser->pNewTable;
+	struct Table *p = parser->create_table_def.new_table;
 	if (p == NULL || NEVER(p->def->field_count < 1))
 		return;
 	struct field_def *field = &p->def->fields[p->def->field_count - 1];
@@ -609,7 +605,7 @@ sqlite3AddDefaultValue(Parse * pParse, ExprSpan * pSpan)
 {
 	Table *p;
 	sqlite3 *db = pParse->db;
-	p = pParse->pNewTable;
+	p = pParse->create_table_def.new_table;
 	assert(p->def->opts.is_temporary);
 	if (p != 0) {
 		if (!sqlite3ExprIsConstantOrFunction
@@ -671,15 +667,12 @@ field_def_create_for_pk(struct Parse *parser, struct field_def *field,
  * index for the key.  No index is created for INTEGER PRIMARY KEYs.
  */
 void
-sqlite3AddPrimaryKey(Parse * pParse,	/* Parsing context */
-		     ExprList * pList,	/* List of field names to be indexed */
-		     int autoInc,	/* True if the AUTOINCREMENT keyword is present */
-		     enum sort_order sortOrder
-    )
+sqlite3AddPrimaryKey(struct Parse *pParse)
 {
-	Table *pTab = pParse->pNewTable;
+	Table *pTab = pParse->create_table_def.new_table;
 	int iCol = -1, i;
 	int nTerm;
+	struct ExprList *pList = pParse->create_index_def.cols;
 	if (pTab == 0)
 		goto primary_key_exit;
 	if (sql_table_primary_key(pTab) != NULL) {
@@ -713,10 +706,7 @@ sqlite3AddPrimaryKey(Parse * pParse,	/* Parsing context */
 		}
 	}
 	if (nTerm == 1 && iCol != -1 &&
-	    pTab->def->fields[iCol].type == FIELD_TYPE_INTEGER &&
-	    sortOrder != SORT_ORDER_DESC) {
-		assert(autoInc == 0 || autoInc == 1);
-		pParse->is_new_table_autoinc = autoInc;
+	    pTab->def->fields[iCol].type == FIELD_TYPE_INTEGER) {
 		struct sqlite3 *db = pParse->db;
 		struct ExprList *list;
 		struct Token token;
@@ -726,18 +716,17 @@ sqlite3AddPrimaryKey(Parse * pParse,	/* Parsing context */
 							     &token, 0));
 		if (list == NULL)
 			goto primary_key_exit;
-		sql_create_index(pParse, 0, 0, list, 0, SORT_ORDER_ASC,
-				 false, SQL_INDEX_TYPE_CONSTRAINT_PK);
+		pParse->create_index_def.cols = list;
+		sql_create_index(pParse);
 		if (db->mallocFailed)
 			goto primary_key_exit;
-	} else if (autoInc) {
+	} else if (pParse->create_table_def.has_autoinc) {
 		sqlite3ErrorMsg(pParse, "AUTOINCREMENT is only allowed on an "
 				"INTEGER PRIMARY KEY or INT PRIMARY KEY");
 		goto primary_key_exit;
 	} else {
-		sql_create_index(pParse, 0, 0, pList, 0, sortOrder, false,
-				 SQL_INDEX_TYPE_CONSTRAINT_PK);
-		pList = 0;
+		sql_create_index(pParse);
+		pList = NULL;
 		if (pParse->nErr > 0)
 			goto primary_key_exit;
 	}
@@ -756,14 +745,21 @@ primary_key_exit:
 }
 
 void
-sql_add_check_constraint(struct Parse *parser, struct ExprSpan *span)
+sql_add_check_constraint(struct Parse *parser)
 {
-	struct Expr *expr = span->pExpr;
-	struct Table *table = parser->pNewTable;
+	struct create_ck_def *ck_def = &parser->create_ck_def;
+	struct alter_entity_def *alter_def =
+		(struct alter_entity_def *) &parser->create_ck_def;
+	assert(alter_def->entity_type == ENTITY_TYPE_CK);
+	(void) alter_def;
+	struct Expr *expr = ck_def->expr->pExpr;
+	struct Table *table = parser->create_table_def.new_table;
 	if (table != NULL) {
 		expr->u.zToken =
-			sqlite3DbStrNDup(parser->db, (char *)span->zStart,
-					 (int)(span->zEnd - span->zStart));
+			sqlite3DbStrNDup(parser->db,
+					 (char *) ck_def->expr->zStart,
+					 (int) (ck_def->expr->zEnd -
+					        ck_def->expr->zStart));
 		if (expr->u.zToken == NULL)
 			goto release_expr;
 		table->def->opts.checks =
@@ -773,9 +769,10 @@ sql_add_check_constraint(struct Parse *parser, struct ExprSpan *span)
 			sqlite3DbFree(parser->db, expr->u.zToken);
 			goto release_expr;
 		}
-		if (parser->constraintName.n) {
+		struct create_entity_def *entity_def = &ck_def->base.base;
+		if (entity_def->name.n > 0) {
 			sqlite3ExprListSetName(parser, table->def->opts.checks,
-					       &parser->constraintName, 1);
+					       &entity_def->name, 1);
 		}
 	} else {
 release_expr:
@@ -790,7 +787,7 @@ release_expr:
 void
 sqlite3AddCollateType(Parse * pParse, Token * pToken)
 {
-	Table *p = pParse->pNewTable;
+	Table *p = pParse->create_table_def.new_table;
 	if (p == NULL)
 		return;
 	uint32_t i = p->def->field_count - 1;
@@ -923,7 +920,7 @@ vdbe_emit_create_index(struct Parse *parse, struct space_def *def,
 	memcpy(raw, index_parts, index_parts_sz);
 	index_parts = raw;
 
-	if (parse->pNewTable != NULL) {
+	if (parse->create_table_def.new_table != NULL) {
 		sqlite3VdbeAddOp2(v, OP_SCopy, space_id_reg, entry_reg);
 		sqlite3VdbeAddOp2(v, OP_Integer, idx_def->iid, entry_reg + 1);
 	} else {
@@ -963,7 +960,7 @@ error:
 static void
 createSpace(Parse * pParse, int iSpaceId)
 {
-	struct Table *table = pParse->pNewTable;
+	struct Table *table = pParse->create_table_def.new_table;
 	Vdbe *v = sqlite3GetVdbe(pParse);
 	int iFirstCol = ++pParse->nMem;
 	int iRecord = (pParse->nMem += 7);
@@ -1113,14 +1110,15 @@ vdbe_emit_fkey_create(struct Parse *parse_context, const struct fkey_def *fk)
 	 * of <CREATE TABLE ...> statement, we don't have child
 	 * id, but we know register where it will be stored.
 	 */
-	if (parse_context->pNewTable != NULL) {
+	if (parse_context->create_table_def.new_table != NULL) {
 		sqlite3VdbeAddOp2(vdbe, OP_SCopy, fk->child_id,
 				  constr_tuple_reg + 1);
 	} else {
 		sqlite3VdbeAddOp2(vdbe, OP_Integer, fk->child_id,
 				  constr_tuple_reg + 1);
 	}
-	if (parse_context->pNewTable != NULL && fkey_is_self_referenced(fk)) {
+	if (parse_context->create_table_def.new_table != NULL &&
+	    fkey_is_self_referenced(fk)) {
 		sqlite3VdbeAddOp2(vdbe, OP_SCopy, fk->parent_id,
 				  constr_tuple_reg + 2);
 	} else {
@@ -1183,7 +1181,7 @@ vdbe_emit_fkey_create(struct Parse *parse_context, const struct fkey_def *fk)
 			  constr_tuple_reg + 9);
 	sqlite3VdbeAddOp3(vdbe, OP_SInsert, BOX_FK_CONSTRAINT_ID, 0,
 			  constr_tuple_reg + 9);
-	if (parse_context->pNewTable == NULL)
+	if (parse_context->create_table_def.new_table == NULL)
 		sqlite3VdbeChangeP5(vdbe, OPFLAG_NCHANGE);
 	save_record(parse_context, BOX_FK_CONSTRAINT_ID, constr_tuple_reg, 2,
 		    vdbe->nOp - 1);
@@ -1257,7 +1255,7 @@ sqlite3EndTable(Parse * pParse,	/* Parse context */
 		return;
 	}
 	assert(!db->mallocFailed);
-	p = pParse->pNewTable;
+	p = pParse->create_table_def.new_table;
 	if (p == 0)
 		return;
 
@@ -1293,20 +1291,24 @@ sqlite3EndTable(Parse * pParse,	/* Parse context */
 		return;
 	int reg_space_id = getNewSpaceId(pParse);
 	createSpace(pParse, reg_space_id);
-	/* Indexes aren't required for VIEW's.. */
-	if (!p->def->opts.is_view) {
-		for (uint32_t i = 0; i < p->space->index_count; ++i) {
-			struct index *idx = p->space->index[i];
-			vdbe_emit_create_index(pParse, p->def, idx->def,
-					       reg_space_id, idx->def->iid);
-		}
-	}
+	/*
+	 * VIEWs can't have any functional parts such as
+	 * indexes or foreign keys, so we can terminate
+	 * right here.
+	 */
+	if (p->def->opts.is_view)
+		return;
 
+	for (uint32_t i = 0; i < p->space->index_count; ++i) {
+		struct index *idx = p->space->index[i];
+		vdbe_emit_create_index(pParse, p->def, idx->def, reg_space_id,
+				       idx->def->iid);
+	}
 	/*
 	 * Check to see if we need to create an _sequence table
 	 * for keeping track of autoincrement keys.
 	 */
-	if (pParse->is_new_table_autoinc) {
+	if (pParse->create_table_def.has_autoinc) {
 		assert(reg_space_id != 0);
 		/* Do an insertion into _sequence. */
 		int reg_seq_id = ++pParse->nMem;
@@ -1329,7 +1331,8 @@ sqlite3EndTable(Parse * pParse,	/* Parse context */
 	}
 	/* Code creation of FK constraints, if any. */
 	struct fkey_parse *fk_parse;
-	rlist_foreach_entry(fk_parse, &pParse->new_fkey, link) {
+	rlist_foreach_entry(fk_parse, &pParse->create_table_def.new_fkey,
+			    link) {
 		struct fkey_def *fk = fk_parse->fkey;
 		if (fk_parse->selfref_cols != NULL) {
 			struct ExprList *cols = fk_parse->selfref_cols;
@@ -1369,8 +1372,7 @@ cleanup:
 
 void
 sql_create_view(struct Parse *parse_context, struct Token *begin,
-		struct Token *name, struct ExprList *aliases,
-		struct Select *select, bool if_exists)
+		struct ExprList *aliases, struct Select *select)
 {
 	struct sqlite3 *db = parse_context->db;
 	struct Table *sel_tab = NULL;
@@ -1379,8 +1381,8 @@ sql_create_view(struct Parse *parse_context, struct Token *begin,
 				"parameters are not allowed in views");
 		goto create_view_fail;
 	}
-	sqlite3StartTable(parse_context, name, if_exists);
-	struct Table *p = parse_context->pNewTable;
+	sqlite3StartTable(parse_context);
+	struct Table *p = parse_context->create_table_def.new_table;
 	if (p == NULL || parse_context->nErr != 0)
 		goto create_view_fail;
 	sel_tab = sqlite3ResultSetOfSelect(parse_context, select);
@@ -1683,14 +1685,15 @@ sql_code_drop_table(struct Parse *parse_context, struct space *space,
  * This routine is called to do the work of a DROP TABLE statement.
  *
  * @param parse_context Current parsing context.
- * @param table_name_list List containing table name.
  * @param is_view True, if statement is really 'DROP VIEW'.
- * @param if_exists True, if statement contains 'IF EXISTS' clause.
  */
 void
-sql_drop_table(struct Parse *parse_context, struct SrcList *table_name_list,
-	       bool is_view, bool if_exists)
+sql_drop_table(struct Parse *parse_context, bool is_view)
 {
+	struct drop_entity_def drop_def = parse_context->drop_entity_def;
+	assert(drop_def.base.entity_type == ENTITY_TYPE_TABLE);
+	assert(drop_def.base.alter_action == ALTER_ACTION_DROP);
+	struct SrcList *table_name_list = drop_def.base.entity_name;
 	struct Vdbe *v = sqlite3GetVdbe(parse_context);
 	struct sqlite3 *db = parse_context->db;
 	if (v == NULL || db->mallocFailed) {
@@ -1702,10 +1705,10 @@ sql_drop_table(struct Parse *parse_context, struct SrcList *table_name_list,
 	const char *space_name = table_name_list->a[0].zName;
 	struct space *space = space_by_name(space_name);
 	if (space == NULL) {
-		if (!is_view && !if_exists)
+		if (!is_view && !drop_def.if_exist)
 			sqlite3ErrorMsg(parse_context, "no such table: %s",
 					space_name);
-		if (is_view && !if_exists)
+		if (is_view && !drop_def.if_exist)
 			sqlite3ErrorMsg(parse_context, "no such view: %s",
 					space_name);
 		goto exit_drop_table;
@@ -1788,12 +1791,15 @@ columnno_by_name(struct Parse *parse_context, const struct space *space,
 }
 
 void
-sql_create_foreign_key(struct Parse *parse_context, struct SrcList *child,
-		       struct Token *constraint, struct ExprList *child_cols,
-		       struct Token *parent, struct ExprList *parent_cols,
-		       bool is_deferred, int actions)
+sql_create_foreign_key(struct Parse *parse_context)
 {
 	struct sqlite3 *db = parse_context->db;
+	struct create_fk_def *create_fk_def = &parse_context->create_fk_def;
+	struct create_constraint_def *create_constr_def = &create_fk_def->base;
+	struct create_entity_def *create_def = &create_constr_def->base;
+	struct alter_entity_def *alter_def = &create_def->base;
+	assert(alter_def->entity_type == ENTITY_TYPE_FK);
+	assert(alter_def->alter_action == ALTER_ACTION_CREATE);
 	/*
 	 * When this function is called second time during
 	 * <CREATE TABLE ...> statement (i.e. at VDBE runtime),
@@ -1812,20 +1818,21 @@ sql_create_foreign_key(struct Parse *parse_context, struct SrcList *child,
 	 * Table under construction during CREATE TABLE
 	 * processing. NULL for ALTER TABLE statement handling.
 	 */
-	struct Table *new_tab = parse_context->pNewTable;
+	struct create_table_def *table_def = &parse_context->create_table_def;
+	struct Table *new_tab = table_def->new_table;
 	/* Whether we are processing ALTER TABLE or CREATE TABLE. */
 	bool is_alter = new_tab == NULL;
 	uint32_t child_cols_count;
+	struct ExprList *child_cols = create_fk_def->child_cols;
 	if (child_cols == NULL) {
 		assert(!is_alter);
 		child_cols_count = 1;
 	} else {
 		child_cols_count = child_cols->nExpr;
 	}
-	assert(!is_alter || (child != NULL && child->nSrc == 1));
 	struct space *child_space = NULL;
 	if (is_alter) {
-		const char *child_name = child->a[0].zName;
+		const char *child_name = alter_def->entity_name->a[0].zName;
 		child_space = space_by_name(child_name);
 		if (child_space == NULL) {
 			diag_set(ClientError, ER_NO_SUCH_SPACE, child_name);
@@ -1840,8 +1847,9 @@ sql_create_foreign_key(struct Parse *parse_context, struct SrcList *child,
 			goto tnt_error;
 		}
 		memset(fk, 0, sizeof(*fk));
-		rlist_add_entry(&parse_context->new_fkey, fk, link);
+		rlist_add_entry(&table_def->new_fkey, fk, link);
 	}
+	struct Token *parent = create_fk_def->parent_name;
 	assert(parent != NULL);
 	parent_name = sqlite3NameFromToken(db, parent);
 	if (parent_name == NULL)
@@ -1853,11 +1861,12 @@ sql_create_foreign_key(struct Parse *parse_context, struct SrcList *child,
 	 */
 	is_self_referenced = !is_alter &&
 			     strcmp(parent_name, new_tab->def->name) == 0;
+	struct ExprList *parent_cols = create_fk_def->parent_cols;
 	struct space *parent_space = space_by_name(parent_name);
 	if (parent_space == NULL) {
 		if (is_self_referenced) {
 			struct fkey_parse *fk =
-				rlist_first_entry(&parse_context->new_fkey,
+				rlist_first_entry(&table_def->new_fkey,
 						  struct fkey_parse, link);
 			fk->selfref_cols = parent_cols;
 			fk->is_self_referenced = true;
@@ -1872,18 +1881,19 @@ sql_create_foreign_key(struct Parse *parse_context, struct SrcList *child,
 			goto exit_create_fk;
 		}
 	}
-	if (constraint == NULL && !is_alter) {
-		if (parse_context->constraintName.n == 0) {
+	if (!is_alter) {
+		if (create_def->name.n == 0) {
 			constraint_name =
 				sqlite3MPrintf(db, "FK_CONSTRAINT_%d_%s",
-					       ++parse_context->fkey_count,
+					       ++table_def->fkey_count,
 					       new_tab->def->name);
 		} else {
-			struct Token *cnstr_nm = &parse_context->constraintName;
-			constraint_name = sqlite3NameFromToken(db, cnstr_nm);
+			constraint_name =
+				sqlite3NameFromToken(db, &create_def->name);
 		}
 	} else {
-		constraint_name = sqlite3NameFromToken(db, constraint);
+		constraint_name =
+			sqlite3NameFromToken(db, &create_def->name);
 	}
 	if (constraint_name == NULL)
 		goto exit_create_fk;
@@ -1916,10 +1926,11 @@ sql_create_foreign_key(struct Parse *parse_context, struct SrcList *child,
 		diag_set(OutOfMemory, fk_size, "region", "struct fkey");
 		goto tnt_error;
 	}
+	int actions = create_fk_def->actions;
 	fk->field_count = child_cols_count;
 	fk->child_id = child_space != NULL ? child_space->def->id : 0;
 	fk->parent_id = parent_space != NULL ? parent_space->def->id : 0;
-	fk->is_deferred = is_deferred;
+	fk->is_deferred = create_constr_def->is_deferred;
 	fk->match = (enum fkey_match) ((actions >> 16) & 0xff);
 	fk->on_update = (enum fkey_action) ((actions >> 8) & 0xff);
 	fk->on_delete = (enum fkey_action) (actions & 0xff);
@@ -1973,7 +1984,7 @@ sql_create_foreign_key(struct Parse *parse_context, struct SrcList *child,
 	 */
 	if (!is_alter) {
 		struct fkey_parse *parse_fk =
-			rlist_first_entry(&parse_context->new_fkey,
+			rlist_first_entry(&table_def->new_fkey,
 					  struct fkey_parse, link);
 		parse_fk->fkey = fk;
 	} else {
@@ -1997,18 +2008,21 @@ void
 fkey_change_defer_mode(struct Parse *parse_context, bool is_deferred)
 {
 	if (parse_context->db->init.busy ||
-	    rlist_empty(&parse_context->new_fkey))
+	    rlist_empty(&parse_context->create_table_def.new_fkey))
 		return;
-	rlist_first_entry(&parse_context->new_fkey, struct fkey_parse,
-			  link)->fkey->is_deferred = is_deferred;
+	rlist_first_entry(&parse_context->create_table_def.new_fkey,
+			  struct fkey_parse, link)->fkey->is_deferred =
+		is_deferred;
 }
 
 void
-sql_drop_foreign_key(struct Parse *parse_context, struct SrcList *table,
-		     struct Token *constraint)
+sql_drop_foreign_key(struct Parse *parse_context)
 {
-	assert(table != NULL && table->nSrc == 1);
-	const char *table_name = table->a[0].zName;
+	struct drop_entity_def *drop_def = &parse_context->drop_entity_def;
+	assert(drop_def->base.entity_type == ENTITY_TYPE_FK);
+	assert(drop_def->base.alter_action == ALTER_ACTION_DROP);
+	const char *table_name = drop_def->base.entity_name->a[0].zName;
+	assert(table_name != NULL);
 	struct space *child = space_by_name(table_name);
 	if (child == NULL) {
 		diag_set(ClientError, ER_NO_SUCH_SPACE, table_name);
@@ -2017,7 +2031,7 @@ sql_drop_foreign_key(struct Parse *parse_context, struct SrcList *table,
 		return;
 	}
 	char *constraint_name = sqlite3NameFromToken(parse_context->db,
-						     constraint);
+						     &drop_def->name);
 	if (constraint_name != NULL)
 		vdbe_emit_fkey_drop(parse_context, constraint_name,
 				    child->def->id);
@@ -2211,19 +2225,29 @@ constraint_is_named(const char *name)
 }
 
 void
-sql_create_index(struct Parse *parse, struct Token *token,
-		 struct SrcList *tbl_name, struct ExprList *col_list,
-		 MAYBE_UNUSED struct Token *start, enum sort_order sort_order,
-		 bool if_not_exist, enum sql_index_type idx_type) {
+sql_create_index(struct Parse *parse) {
 	/* The index to be created. */
 	struct index *index = NULL;
 	/* Name of the index. */
 	char *name = NULL;
 	struct sqlite3 *db = parse->db;
 	assert(!db->init.busy);
+	struct create_index_def *create_idx_def = &parse->create_index_def;
+	struct create_entity_def *create_entity_def = &create_idx_def->base.base;
+	struct alter_entity_def *alter_entity_def = &create_entity_def->base;
+	assert(alter_entity_def->entity_type == ENTITY_TYPE_INDEX);
+	assert(alter_entity_def->alter_action == ALTER_ACTION_CREATE);
+	/*
+	 * Get list of columns to be indexed. It will be NULL if
+	 * this is a primary key or unique-constraint on the most
+	 * recent column added to the table under construction.
+	 */
+	struct ExprList *col_list = create_idx_def->cols;
+	struct SrcList *tbl_name = alter_entity_def->entity_name;
 
 	if (db->mallocFailed || parse->nErr > 0)
 		goto exit_create_index;
+	enum sql_index_type idx_type = create_idx_def->idx_type;
 	if (idx_type == SQL_INDEX_TYPE_UNIQUE ||
 	    idx_type == SQL_INDEX_TYPE_NON_UNIQUE) {
 		Vdbe *v = sqlite3GetVdbe(parse);
@@ -2238,12 +2262,13 @@ sql_create_index(struct Parse *parse, struct Token *token,
 	 */
 	struct space *space = NULL;
 	struct space_def *def = NULL;
+	struct Token token = create_entity_def->name;
 	if (tbl_name != NULL) {
-		assert(token != NULL && token->z != NULL);
+		assert(token.n > 0 && token.z != NULL);
 		const char *name = tbl_name->a[0].zName;
 		space = space_by_name(name);
 		if (space == NULL) {
-			if (! if_not_exist) {
+			if (! create_entity_def->if_not_exist) {
 				diag_set(ClientError, ER_NO_SUCH_SPACE, name);
 				parse->rc = SQL_TARANTOOL_ERROR;
 				parse->nErr++;
@@ -2252,12 +2277,10 @@ sql_create_index(struct Parse *parse, struct Token *token,
 		}
 		def = space->def;
 	} else {
-		if (parse->pNewTable == NULL)
+		if (parse->create_table_def.new_table == NULL)
 			goto exit_create_index;
-		assert(token == NULL);
-		assert(start == NULL);
-		space = parse->pNewTable->space;
-		def = parse->pNewTable->def;
+		space = parse->create_table_def.new_table->space;
+		def = parse->create_table_def.new_table->def;
 	}
 
 	if (def->opts.is_view) {
@@ -2284,13 +2307,13 @@ sql_create_index(struct Parse *parse, struct Token *token,
 	 * 2) UNIQUE constraint is non-named and standard
 	 *    auto-index name will be generated.
 	 */
-	if (token != NULL) {
-		assert(token->z != NULL);
-		name = sqlite3NameFromToken(db, token);
+	if (parse->create_table_def.new_table == NULL) {
+		assert(token.z != NULL);
+		name = sqlite3NameFromToken(db, &token);
 		if (name == NULL)
 			goto exit_create_index;
 		if (sql_space_index_by_name(space, name) != NULL) {
-			if (!if_not_exist) {
+			if (! create_entity_def->if_not_exist) {
 				sqlite3ErrorMsg(parse,
 						"index %s.%s already exists",
 						def->name, name);
@@ -2299,11 +2322,10 @@ sql_create_index(struct Parse *parse, struct Token *token,
 		}
 	} else {
 		char *constraint_name = NULL;
-		if (parse->constraintName.z != NULL)
+		if (create_entity_def->name.n > 0)
 			constraint_name =
 				sqlite3NameFromToken(db,
-						     &parse->constraintName);
-
+						     &create_entity_def->name);
 	       /*
 		* This naming is temporary. Now it's not
 		* possible (since we implement UNIQUE
@@ -2361,7 +2383,8 @@ sql_create_index(struct Parse *parse, struct Token *token,
 		if (col_list == NULL)
 			goto exit_create_index;
 		assert(col_list->nExpr == 1);
-		sqlite3ExprListSetSortOrder(col_list, sort_order);
+		sqlite3ExprListSetSortOrder(col_list,
+					    create_idx_def->sort_order);
 	} else {
 		sqlite3ExprListCheckLength(parse, col_list, "index");
 	}
@@ -2442,7 +2465,7 @@ sql_create_index(struct Parse *parse, struct Token *token,
 	 * constraint, but has different onError (behavior on
 	 * constraint violation), then an error is raised.
 	 */
-	if (parse->pNewTable != NULL) {
+	if (parse->create_table_def.new_table != NULL) {
 		for (uint32_t i = 0; i < space->index_count; ++i) {
 			struct index *existing_idx = space->index[i];
 			uint32_t iid = existing_idx->def->iid;
@@ -2509,8 +2532,6 @@ sql_create_index(struct Parse *parse, struct Token *token,
 				  (void *)space_by_id(BOX_INDEX_ID),
 				  P4_SPACEPTR);
 		sqlite3VdbeChangeP5(vdbe, OPFLAG_SEEKEQ);
-
-		assert(start != NULL);
 		int index_id = getNewIid(parse, def->id, cursor);
 		sqlite3VdbeAddOp1(vdbe, OP_Close, cursor);
 		vdbe_emit_create_index(parse, def, index->def,
@@ -2534,30 +2555,33 @@ sql_create_index(struct Parse *parse, struct Token *token,
 }
 
 void
-sql_drop_index(struct Parse *parse_context, struct SrcList *index_name_list,
-	       struct Token *table_token, bool if_exists)
+sql_drop_index(struct Parse *parse_context)
 {
+	struct drop_entity_def *drop_def = &parse_context->drop_entity_def;
+	assert(drop_def->base.entity_type == ENTITY_TYPE_INDEX);
+	assert(drop_def->base.alter_action == ALTER_ACTION_DROP);
 	struct Vdbe *v = sqlite3GetVdbe(parse_context);
 	assert(v != NULL);
 	struct sqlite3 *db = parse_context->db;
 	/* Never called with prior errors. */
 	assert(parse_context->nErr == 0);
-	assert(table_token != NULL);
-	const char *table_name = sqlite3NameFromToken(db, table_token);
+	struct SrcList *table_list = drop_def->base.entity_name;
+	assert(table_list->nSrc == 1);
+	char *table_name = table_list->a[0].zName;
+	const char *index_name = NULL;
 	if (db->mallocFailed) {
 		goto exit_drop_index;
 	}
 	sqlite3VdbeCountChanges(v);
-	assert(index_name_list->nSrc == 1);
-	assert(table_token->n > 0);
 	struct space *space = space_by_name(table_name);
+	bool if_exists = drop_def->if_exist;
 	if (space == NULL) {
 		if (!if_exists)
 			sqlite3ErrorMsg(parse_context, "no such space: %s",
 					table_name);
 		goto exit_drop_index;
 	}
-	const char *index_name = index_name_list->a[0].zName;
+	index_name = sqlite3NameFromToken(db, &drop_def->name);
 	uint32_t index_id = box_index_id_by_name(space->def->id, index_name,
 						 strlen(index_name));
 	if (index_id == BOX_ID_NIL) {
@@ -2583,8 +2607,8 @@ sql_drop_index(struct Parse *parse_context, struct SrcList *index_name_list,
 	sqlite3VdbeAddOp2(v, OP_SDelete, BOX_INDEX_ID, record_reg);
 	sqlite3VdbeChangeP5(v, OPFLAG_NCHANGE);
  exit_drop_index:
-	sqlite3SrcListDelete(db, index_name_list);
-	sqlite3DbFree(db, (void *) table_name);
+	sqlite3SrcListDelete(db, table_list);
+	sqlite3DbFree(db, (void *) index_name);
 }
 
 /*
