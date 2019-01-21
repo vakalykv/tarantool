@@ -34,6 +34,7 @@
 #include "journal.h"
 #include <fiber.h>
 #include "xrow.h"
+#include "replication.h"
 
 double too_long_threshold;
 
@@ -150,6 +151,7 @@ txn_begin(bool is_autocommit)
 	txn->engine = NULL;
 	txn->engine_tx = NULL;
 	txn->psql_txn = NULL;
+	txn->remote_row_count = 0;
 	/* fiber_on_yield/fiber_on_stop initialized by engine on demand */
 	fiber_set_txn(fiber(), txn);
 	return txn;
@@ -231,6 +233,10 @@ txn_commit_stmt(struct txn *txn, struct request *request)
 	 * stmt->space can be NULL for IRPOTO_NOP.
 	 */
 	if (stmt->space == NULL || !space_is_temporary(stmt->space)) {
+		if (request->header &&
+		    request->header->replica_id != instance_id &&
+		    request->header->replica_id != 0)
+			++txn->remote_row_count;
 		if (txn_add_redo(stmt, request) != 0)
 			goto fail;
 		++txn->n_rows;
@@ -271,14 +277,21 @@ txn_write_to_wal(struct txn *txn)
 		return -1;
 
 	struct txn_stmt *stmt;
-	struct xrow_header **row = req->rows;
+	struct xrow_header **remote_row = req->rows;
+	struct xrow_header **local_row = req->rows + txn->remote_row_count;
 	stailq_foreach_entry(stmt, &txn->stmts, next) {
 		if (stmt->row == NULL)
-			continue; /* A read (e.g. select) request */
-		*row++ = stmt->row;
+			/* A read (e.g. select) request */
+			continue;
+		if (stmt->row->replica_id == instance_id ||
+		    stmt->row->replica_id == 0)
+			*local_row++ = stmt->row;
+		else
+			*remote_row++ = stmt->row;
 		req->approx_len += xrow_approx_len(stmt->row);
 	}
-	assert(row == req->rows + req->n_rows);
+	assert(remote_row == req->rows + txn->remote_row_count);
+	assert(local_row == req->rows + req->n_rows);
 
 	ev_tstamp start = ev_monotonic_now(loop());
 	int64_t res = journal_write(req);

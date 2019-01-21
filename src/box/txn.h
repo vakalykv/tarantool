@@ -180,6 +180,8 @@ struct txn {
 	 /** Commit and rollback triggers */
 	struct rlist on_commit, on_rollback;
 	struct sql_txn *psql_txn;
+	/** Count of remote rows. */
+	uint32_t remote_row_count;
 };
 
 /* Pointer to the current transaction (if any) */

@@ -102,6 +102,8 @@ error:
 
 	if (mp_typeof(**pos) != MP_MAP)
 		goto error;
+	bool txn_is_set = false;
+	uint32_t txn_flags = 0;
 
 	uint32_t size = mp_decode_map(pos);
 	for (uint32_t i = 0; i < size; i++) {
@@ -133,12 +135,32 @@ error:
 		case IPROTO_SCHEMA_VERSION:
 			header->schema_version = mp_decode_uint(pos);
 			break;
+		case IPROTO_TXN_ID:
+			txn_is_set = true;
+			header->txn_id = mp_decode_uint(pos);
+			break;
+		case IPROTO_TXN_FLAGS:
+			txn_flags = mp_decode_uint(pos);
+			header->txn_commit = txn_flags & TXN_FLAG_COMMIT;
+			if ((txn_flags & ~TXN_FLAG_COMMIT) != 0)
+				/* Unknow flags. */
+				goto error;
+			break;
 		default:
 			/* unknown header */
 			mp_next(pos);
 		}
 	}
 	assert(*pos <= end);
+	if (!txn_is_set) {
+		/*
+		 * Transaction id is not set so it is a single statement
+		 * transaction.
+		 */
+		header->txn_commit = true;
+	}
+	header->txn_id = header->lsn + header->txn_id;
+
 	/* Nop requests aren't supposed to have a body. */
 	if (*pos < end && header->type != IPROTO_NOP) {
 		const char *body = *pos;
@@ -222,6 +244,20 @@ xrow_header_encode(const struct xrow_header *header, uint64_t sync,
 		d = mp_encode_uint(d, IPROTO_TIMESTAMP);
 		d = mp_encode_double(d, header->tm);
 		map_size++;
+	}
+	if (header->txn_id != 0) {
+		if (header->txn_id != header->lsn || header->txn_commit == 0) {
+			/* Encode txn id for multi row transaction members. */
+			d = mp_encode_uint(d, IPROTO_TXN_ID);
+			d = mp_encode_uint(d, header->lsn - header->txn_id);
+			map_size++;
+		}
+		if (header->txn_commit && header->txn_id != header->lsn) {
+			/* Setup last row for multi row transaction. */
+			d = mp_encode_uint(d, IPROTO_TXN_FLAGS);
+			d = mp_encode_uint(d, TXN_FLAG_COMMIT);
+			map_size++;
+		}
 	}
 	assert(d <= data + XROW_HEADER_LEN_MAX);
 	mp_encode_map(data, map_size);

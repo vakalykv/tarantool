@@ -896,10 +896,11 @@ wal_writer_begin_rollback(struct wal_writer *writer)
 	cpipe_push(&wal_thread.tx_prio_pipe, &writer->in_rollback);
 }
 
-static void
-wal_assign_lsn(struct vclock *vclock, struct xrow_header **row,
+static int
+wal_assign_lsn(struct vclock *vclock, struct xrow_header **begin,
 	       struct xrow_header **end)
 {
+	struct xrow_header **row = begin;
 	/** Assign LSN to all local rows. */
 	for ( ; row < end; row++) {
 		if ((*row)->replica_id == 0) {
@@ -909,6 +910,21 @@ wal_assign_lsn(struct vclock *vclock, struct xrow_header **row,
 			vclock_follow_xrow(vclock, *row);
 		}
 	}
+	while (begin < end && begin[0]->replica_id != instance_id)
+		++begin;
+	/* Setup txn_id and tnx_replica_id for locally generated rows. */
+	row = begin;
+	while (row < end) {
+		if (row[0]->replica_id != instance_id) {
+			diag_set(ClientError, ER_UNSUPPORTED,
+				 "Interleaved transactions");
+			return -1;
+		}
+		row[0]->txn_id = begin[0]->lsn;
+		row[0]->txn_commit = row == end - 1 ? 1 : 0;
+		++row;
+	}
+	return 0;
 }
 
 static void
@@ -979,7 +995,9 @@ wal_write_to_disk(struct cmsg *msg)
 	struct journal_entry *entry;
 	struct stailq_entry *last_committed = NULL;
 	stailq_foreach_entry(entry, &wal_msg->commit, fifo) {
-		wal_assign_lsn(&vclock, entry->rows, entry->rows + entry->n_rows);
+		if (wal_assign_lsn(&vclock, entry->rows,
+				   entry->rows + entry->n_rows) < 0)
+			goto done;
 		entry->res = vclock_sum(&vclock);
 		rc = xlog_write_entry(l, entry);
 		if (rc < 0)
@@ -1173,7 +1191,9 @@ wal_write_in_wal_mode_none(struct journal *journal,
 			   struct journal_entry *entry)
 {
 	struct wal_writer *writer = (struct wal_writer *) journal;
-	wal_assign_lsn(&writer->vclock, entry->rows, entry->rows + entry->n_rows);
+	if (wal_assign_lsn(&writer->vclock, entry->rows,
+			   entry->rows + entry->n_rows) != 0)
+		return -1;
 	vclock_copy(&replicaset.vclock, &writer->vclock);
 	return vclock_sum(&writer->vclock);
 }
