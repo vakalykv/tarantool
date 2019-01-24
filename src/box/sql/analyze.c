@@ -125,22 +125,15 @@
  * @param table_name Delete records of this table if specified.
  */
 static void
-vdbe_emit_stat_space_open(struct Parse *parse, const char *table_name)
+vdbe_emit_stat_space_open(struct Parse *parse, uint32_t space_id)
 {
-	const char *stat_names[] = {"_sql_stat1", "_sql_stat4"};
-	const uint32_t stat_ids[] = {BOX_SQL_STAT1_ID, BOX_SQL_STAT4_ID};
 	struct Vdbe *v = sqlite3GetVdbe(parse);
 	assert(v != NULL);
 	assert(sqlite3VdbeDb(v) == parse->db);
-	for (uint i = 0; i < lengthof(stat_names); ++i) {
-		const char *space_name = stat_names[i];
-		if (table_name != NULL) {
-			vdbe_emit_stat_space_clear(parse, space_name, NULL,
-						   table_name);
-		} else {
-			sqlite3VdbeAddOp1(v, OP_Clear, stat_ids[i]);
-		}
-	}
+	if (space_id != BOX_ID_NIL)
+		vdbe_emit_stat_space_clear(parse, space_id, BOX_ID_NIL);
+	else
+		sqlite3VdbeAddOp1(v, OP_Clear, BOX_SQL_STAT_ID);
 }
 
 /*
@@ -149,6 +142,30 @@ vdbe_emit_stat_space_open(struct Parse *parse, const char *table_name)
 #ifndef SQL_STAT4_SAMPLES
 #define SQL_STAT4_SAMPLES 24
 #endif
+
+enum
+{
+	REGISTER_SPACE_ID = 1,
+	REGISTER_INDEX_ID,
+	REGISTER_STAT,
+	REGISTER_NEQ,
+	REGISTER_NLT,
+	REGISTER_NDLT,
+	REGISTER_SAMPLE,
+
+	REGISTER_TMP,
+
+	REGISTER_STAT_ACCUM,
+	REGISTER_ARG1,
+	REGISTER_ARG2,
+	REGISTER_ARG3,
+
+	REGISTER_NEQ_ARRAY,
+	REGISTER_NLT_ARRAY = REGISTER_NEQ_ARRAY + SQL_STAT4_SAMPLES,
+	REGISTER_NDLT_ARRAY = REGISTER_NLT_ARRAY + SQL_STAT4_SAMPLES,
+	REGISTER_SAMPLE_ARRAY = REGISTER_NDLT_ARRAY + SQL_STAT4_SAMPLES,
+	REGISTER_PREV = REGISTER_SAMPLE_ARRAY + SQL_STAT4_SAMPLES,
+};
 
 /*
  * Three SQL functions - stat_init(), stat_push(), and stat_get() -
@@ -756,263 +773,189 @@ callStatGet(Vdbe * v, int regStat4, int iParam, int regOut)
 	sqlite3VdbeChangeP5(v, 2);
 }
 
-/**
- * Generate code to do an analysis of all indices associated with
- * a single table.
- *
- * @param parse Current parsing context.
- * @param space Space to be analyzed.
- */
 static void
-vdbe_emit_analyze_space(struct Parse *parse, struct space *space)
+vdbe_emit_analyze_space_init(struct Parse *parse, struct index *idx,
+			     int idx_cursor, int first_reg)
 {
-	assert(space != NULL);
-	struct space *stat1 = space_by_id(BOX_SQL_STAT1_ID);
-	assert(stat1 != NULL);
-	struct space *stat4 = space_by_id(BOX_SQL_STAT4_ID);
-	assert(stat4 != NULL);
-
-	/* Register to hold Stat4Accum object. */
-	int stat4_reg = ++parse->nMem;
-	/* Index of changed index field. */
-	int chng_reg = ++parse->nMem;
-	/* Key argument passed to stat_push(). */
-	int key_reg = ++parse->nMem;
-	/* Temporary use register. */
-	int tmp_reg = ++parse->nMem;
-	/* Register containing table name. */
-	int tab_name_reg = ++parse->nMem;
-	/* Register containing index name. */
-	int idx_name_reg = ++parse->nMem;
-	/* Value for the stat column of _sql_stat1. */
-	int stat1_reg = ++parse->nMem;
-	/* MUST BE LAST (see below). */
-	int prev_reg = ++parse->nMem;
-	/* Do not gather statistics on system tables. */
-	if (space_is_system(space))
-		return;
-	/*
-	 * Open a read-only cursor on the table. Also allocate
-	 * a cursor number to use for scanning indexes.
-	 */
-	int tab_cursor = parse->nTab;
-	parse->nTab += 2;
-	assert(space->index_count != 0);
 	struct Vdbe *v = sqlite3GetVdbe(parse);
 	assert(v != NULL);
-	const char *tab_name = space_name(space);
-	sqlite3VdbeAddOp4(v, OP_IteratorOpen, tab_cursor, 0, 0, (void *) space,
-			  P4_SPACEPTR);
-	sqlite3VdbeLoadString(v, tab_name_reg, space->def->name);
-	for (uint32_t j = 0; j < space->index_count; ++j) {
-		struct index *idx = space->index[j];
-		const char *idx_name;
-		/*
-		 * Primary indexes feature automatically generated
-		 * names. Thus, for the sake of clarity, use
-		 * instead more familiar table name.
-		 */
-		if (idx->def->iid == 0)
-			idx_name = tab_name;
-		else
-			idx_name = idx->def->name;
-		int part_count = idx->def->key_def->part_count;
-		/* Populate the register containing the index name. */
-		sqlite3VdbeLoadString(v, idx_name_reg, idx_name);
-		VdbeComment((v, "Analysis for %s.%s", tab_name, idx_name));
-		/*
-		 * Pseudo-code for loop that calls stat_push():
-		 *
-		 *   Rewind csr
-		 *   if eof(csr) goto end_of_scan;
-		 *   chng_reg = 0
-		 *   goto chng_addr_0;
-		 *
-		 *  next_row:
-		 *   chng_reg = 0
-		 *   if( idx(0) != prev_reg(0) ) goto chng_addr_0
-		 *   chng_reg = 1
-		 *   if( idx(1) != prev_reg(1) ) goto chng_addr_1
-		 *   ...
-		 *   chng_reg = N
-		 *   goto chng_addr_N
-		 *
-		 *  chng_addr_0:
-		 *   prev_reg(0) = idx(0)
-		 *  chng_addr_1:
-		 *   prev_reg(1) = idx(1)
-		 *  ...
-		 *
-		 *  distinct_addr:
-		 *   key_reg = idx(key)
-		 *   stat_push(P, chng_reg, key_reg)
-		 *   Next csr
-		 *   if !eof(csr) goto next_row;
-		 *
-		 *  end_of_scan:
-		 */
 
-		/*
-		 * Make sure there are enough memory cells
-		 * allocated to accommodate the prev_reg array
-		 * and a trailing key (the key slot is required
-		 * when building a record to insert into
-		 * the sample column of the _sql_stat4 table).
-		 */
-		parse->nMem = MAX(parse->nMem, prev_reg + part_count);
-		/* Open a cursor on the index being analyzed. */
-		int idx_cursor;
-		if (j != 0) {
-			idx_cursor = parse->nTab - 1;
-			sqlite3VdbeAddOp4(v, OP_IteratorOpen, idx_cursor,
-					  idx->def->iid, 0,
-					  (void *) space, P4_SPACEPTR);
-			VdbeComment((v, "%s", idx->def->name));
-		} else {
-			/* We have already opened cursor on PK. */
-			idx_cursor = tab_cursor;
-		}
-		/*
-		 * Invoke the stat_init() function.
-		 * The arguments are:
-		 *  (1) The number of columns in the index
-		 *      (including the number of PK columns);
-		 *  (2) The number of columns in the key
-		 *       without the pk;
-		 *  (3) the number of rows in the index;
-		 * FIXME: for Tarantool first and second args
-		 * are the same.
-		 *
-		 * The third argument is only used for STAT4
-		 */
-		sqlite3VdbeAddOp2(v, OP_Count, idx_cursor, stat4_reg + 3);
-		sqlite3VdbeAddOp2(v, OP_Integer, part_count, stat4_reg + 1);
-		sqlite3VdbeAddOp2(v, OP_Integer, part_count, stat4_reg + 2);
-		sqlite3VdbeAddOp4(v, OP_Function0, 0, stat4_reg + 1, stat4_reg,
-				  (char *)&statInitFuncdef, P4_FUNCDEF);
-		sqlite3VdbeChangeP5(v, 3);
-		/*
-		 * Implementation of the following:
-		 *
-		 *   Rewind csr
-		 *   if eof(csr) goto end_of_scan;
-		 *   chng_reg = 0
-		 *   goto next_push_0;
-		 */
-		int rewind_addr = sqlite3VdbeAddOp1(v, OP_Rewind, idx_cursor);
-		sqlite3VdbeAddOp2(v, OP_Integer, 0, chng_reg);
-		int distinct_addr = sqlite3VdbeMakeLabel(v);
-		/* Array of jump instruction addresses. */
-		int *jump_addrs = region_alloc(&parse->region,
-					       sizeof(int) * part_count);
-		if (jump_addrs == NULL) {
-			diag_set(OutOfMemory, sizeof(int) * part_count,
-				 "region", "jump_addrs");
-			parse->rc = SQL_TARANTOOL_ERROR;
-			parse->nErr++;
-			return;
-		}
-		/*
-		 *  next_row:
-		 *   chng_reg = 0
-		 *   if( idx(0) != prev_reg(0) ) goto chng_addr_0
-		 *   chng_reg = 1
-		 *   if( idx(1) != prev_reg(1) ) goto chng_addr_1
-		 *   ...
-		 *   chng_reg = N
-		 *   goto distinct_addr
-		 */
-		sqlite3VdbeAddOp0(v, OP_Goto);
-		int next_row_addr = sqlite3VdbeCurrentAddr(v);
-		if (part_count == 1 && idx->def->opts.is_unique) {
-			/*
-			 * For a single-column UNIQUE index, once
-			 * we have found a non-NULL row, we know
-			 * that all the rest will be distinct, so
-			 * skip subsequent distinctness tests.
-			 */
-			sqlite3VdbeAddOp2(v, OP_NotNull, prev_reg,
-					  distinct_addr);
-		}
-		struct key_part *part = idx->def->key_def->parts;
-		for (int i = 0; i < part_count; ++i, ++part) {
-			struct coll *coll = part->coll;
-			sqlite3VdbeAddOp2(v, OP_Integer, i, chng_reg);
-			sqlite3VdbeAddOp3(v, OP_Column, idx_cursor,
-					  part->fieldno, tmp_reg);
-			jump_addrs[i] = sqlite3VdbeAddOp4(v, OP_Ne, tmp_reg, 0,
-							 prev_reg + i,
-							 (char *)coll,
-							 P4_COLLSEQ);
-			sqlite3VdbeChangeP5(v, SQLITE_NULLEQ);
-		}
-		sqlite3VdbeAddOp2(v, OP_Integer, part_count, chng_reg);
-		sqlite3VdbeGoto(v, distinct_addr);
-		/*
-		 *  chng_addr_0:
-		 *   prev_reg(0) = idx(0)
-		 *  chng_addr_1:
-		 *   prev_reg(1) = idx(1)
-		 *  ...
-		 */
-		sqlite3VdbeJumpHere(v, next_row_addr - 1);
-		part = idx->def->key_def->parts;
-		for (int i = 0; i < part_count; ++i, ++part) {
-			sqlite3VdbeJumpHere(v, jump_addrs[i]);
-			sqlite3VdbeAddOp3(v, OP_Column, idx_cursor,
-					  part->fieldno, prev_reg + i);
-		}
-		sqlite3VdbeResolveLabel(v, distinct_addr);
-		/*
-		 *  chng_addr_N:
-		 *   key_reg = idx(key)
-		 *   stat_push(P, chng_reg, key_reg)
-		 *   Next csr
-		 *   if !eof(csr) goto next_row;
-		 */
-		assert(key_reg == (stat4_reg + 2));
-		struct index *pk = space_index(space, 0);
-		int pk_part_count = pk->def->key_def->part_count;
-		/* Allocate memory for array. */
-		parse->nMem = MAX(parse->nMem,
-				  prev_reg + part_count + pk_part_count);
-		int stat_key_reg = prev_reg + part_count;
-		for (int i = 0; i < pk_part_count; i++) {
-			uint32_t k = pk->def->key_def->parts[i].fieldno;
-			assert(k < space->def->field_count);
-			sqlite3VdbeAddOp3(v, OP_Column, idx_cursor, k,
-					  stat_key_reg + i);
-			VdbeComment((v, "%s", space->def->fields[k].name));
-		}
-		sqlite3VdbeAddOp3(v, OP_MakeRecord, stat_key_reg,
-				  pk_part_count, key_reg);
-		assert(chng_reg == (stat4_reg + 1));
-		sqlite3VdbeAddOp4(v, OP_Function0, 1, stat4_reg, tmp_reg,
-				  (char *)&statPushFuncdef, P4_FUNCDEF);
-		sqlite3VdbeChangeP5(v, 3);
-		sqlite3VdbeAddOp2(v, OP_Next, idx_cursor, next_row_addr);
-		/* Add the entry to the stat1 table. */
-		callStatGet(v, stat4_reg, STAT_GET_STAT1, stat1_reg);
-		assert("BBB"[0] == AFFINITY_TEXT);
-		sqlite3VdbeAddOp4(v, OP_MakeRecord, tab_name_reg, 3, tmp_reg,
-				  "BBB", 0);
-		sqlite3VdbeAddOp4(v, OP_IdxInsert, tmp_reg, 0, 0,
-				  (char *)stat1, P4_SPACEPTR);
-		/* Add the entries to the stat4 table. */
-		int eq_reg = stat1_reg;
-		int lt_reg = stat1_reg + 1;
-		int dlt_reg = stat1_reg + 2;
-		int sample_reg = stat1_reg + 3;
-		int col_reg = stat1_reg + 4;
-		int sample_key_reg = col_reg + part_count;
-		parse->nMem = MAX(parse->nMem, col_reg + part_count);
+	int part_count = idx->def->key_def->part_count;
+
+	int stat_accum_reg = first_reg + REGISTER_STAT_ACCUM;
+	int arg1_reg =  first_reg + REGISTER_ARG1;
+	int arg2_reg =  first_reg + REGISTER_ARG2;
+	int arg3_reg =  first_reg + REGISTER_ARG3;
+	int prev_reg = first_reg + REGISTER_PREV;
+
+	assert(arg1_reg == stat_accum_reg + 1);
+	assert(arg2_reg == arg1_reg + 1);
+	assert(arg3_reg == arg2_reg + 1);
+
+	/*
+	 * Make sure there are enough memory cells
+	 * allocated to accommodate the prev_reg array
+	 * and a trailing key (the key slot is required
+	 * when building a record to insert into
+	 * the sample column of the _sql_stat4 table).
+	 */
+	parse->nMem = MAX(parse->nMem, prev_reg + part_count);
+
+	/*
+	 * Invoke the stat_init() function.
+	 * The arguments are:
+	 *  (1) The number of columns in the index
+	 *      (including the number of PK columns);
+	 *  (2) The number of columns in the key
+	 *       without the pk;
+	 *  (3) the number of rows in the index;
+	 * FIXME: for Tarantool first and second args
+	 * are the same.
+	 *
+	 * The third argument is only used for STAT4
+	 */
+	sqlite3VdbeAddOp2(v, OP_Integer, part_count, arg1_reg);
+	sqlite3VdbeAddOp2(v, OP_Integer, part_count, arg2_reg);
+	sqlite3VdbeAddOp2(v, OP_Count, idx_cursor, arg3_reg);
+	sqlite3VdbeAddOp4(v, OP_Function0, 0, arg1_reg, stat_accum_reg,
+			  (char *)&statInitFuncdef, P4_FUNCDEF);
+	sqlite3VdbeChangeP5(v, 3);
+}
+
+static void
+vdbe_emit_analyze_space_execute(struct Parse *parse, struct space *space,
+				struct index *idx, int idx_cursor,
+				int first_reg)
+{
+	struct Vdbe *v = sqlite3GetVdbe(parse);
+	assert(v != NULL);
+
+	int stat_accum_reg = first_reg + REGISTER_STAT_ACCUM;
+	/* Going to contain number of changed field. */
+	int arg1_reg =  first_reg + REGISTER_ARG1;
+	/* Going to contain key. */
+	int arg2_reg =  first_reg + REGISTER_ARG2;
+	int prev_reg = first_reg + REGISTER_PREV;
+	int tmp_reg = first_reg + REGISTER_TMP;
+
+	assert(arg1_reg == stat_accum_reg + 1);
+	assert(arg2_reg == arg1_reg + 1);
+
+	int part_count = idx->def->key_def->part_count;
+	sqlite3VdbeAddOp2(v, OP_Integer, 0, arg1_reg);
+	int distinct_addr = sqlite3VdbeMakeLabel(v);
+	/* Array of jump instruction addresses. */
+	int *jump_addrs = region_alloc(&parse->region,
+				       sizeof(int) * part_count);
+	if (jump_addrs == NULL) {
+		diag_set(OutOfMemory, sizeof(int) * part_count,
+			 "region_alloc", "jump_addrs");
+		parse->rc = SQL_TARANTOOL_ERROR;
+		parse->nErr++;
+		return;
+	}
+
+	sqlite3VdbeAddOp0(v, OP_Goto);
+	int next_row_addr = sqlite3VdbeCurrentAddr(v);
+
+	/*
+	 * For a single-column UNIQUE index, once we have found a
+	 * non-NULL row, we know that all the rest will be
+	 * distinct, so skip subsequent distinctness tests.
+	 */
+	if (part_count == 1 && idx->def->opts.is_unique)
+		sqlite3VdbeAddOp2(v, OP_NotNull, prev_reg, distinct_addr);
+
+	struct key_part *part = idx->def->key_def->parts;
+	for (int i = 0; i < part_count; ++i, ++part) {
+		struct coll *coll = part->coll;
+		sqlite3VdbeAddOp2(v, OP_Integer, i, arg1_reg);
+		sqlite3VdbeAddOp3(v, OP_Column, idx_cursor, part->fieldno,
+				  tmp_reg);
+		jump_addrs[i] = sqlite3VdbeAddOp4(v, OP_Ne, tmp_reg, 0,
+						  prev_reg + i, (char *)coll,
+						  P4_COLLSEQ);
+		sqlite3VdbeChangeP5(v, SQLITE_NULLEQ);
+	}
+	sqlite3VdbeAddOp2(v, OP_Integer, part_count, arg1_reg);
+	sqlite3VdbeGoto(v, distinct_addr);
+
+	sqlite3VdbeJumpHere(v, next_row_addr - 1);
+	part = idx->def->key_def->parts;
+	for (int i = 0; i < part_count; ++i, ++part) {
+		sqlite3VdbeJumpHere(v, jump_addrs[i]);
+		sqlite3VdbeAddOp3(v, OP_Column, idx_cursor, part->fieldno,
+				  prev_reg + i);
+	}
+	sqlite3VdbeResolveLabel(v, distinct_addr);
+
+	struct index *pk = space_index(space, 0);
+	int pk_part_count = pk->def->key_def->part_count;
+	/* Allocate memory for array. */
+	parse->nMem = MAX(parse->nMem, prev_reg + part_count + pk_part_count);
+
+	int stat_key_reg = prev_reg + part_count;
+	for (int i = 0; i < pk_part_count; i++) {
+		uint32_t k = pk->def->key_def->parts[i].fieldno;
+		assert(k < space->def->field_count);
+		sqlite3VdbeAddOp3(v, OP_Column, idx_cursor, k,
+				  stat_key_reg + i);
+		VdbeComment((v, "%s", space->def->fields[k].name));
+	}
+	sqlite3VdbeAddOp3(v, OP_MakeRecord, stat_key_reg, pk_part_count,
+			  arg2_reg);
+	sqlite3VdbeAddOp4(v, OP_Function0, 1, stat_accum_reg, tmp_reg,
+			  (char *)&statPushFuncdef, P4_FUNCDEF);
+	sqlite3VdbeChangeP5(v, 3);
+	sqlite3VdbeAddOp2(v, OP_Next, idx_cursor, next_row_addr);
+}
+
+static void
+vdbe_emit_analyze_space_load(struct Parse *parse, struct space *space,
+			     struct index *idx, int tab_cursor, int first_reg)
+{
+	struct Vdbe *v = sqlite3GetVdbe(parse);
+	assert(v != NULL);
+
+	int stat_accum_reg = first_reg + REGISTER_STAT_ACCUM;
+	int stat_reg = first_reg + REGISTER_STAT;
+	int neq_reg = first_reg + REGISTER_NEQ;
+	int nlt_reg = first_reg + REGISTER_NLT;
+	int ndlt_reg = first_reg + REGISTER_NDLT;
+	int sample_reg = first_reg + REGISTER_SAMPLE;
+	int tmp_reg = first_reg + REGISTER_TMP;
+	int neq_array_reg = first_reg + REGISTER_NEQ_ARRAY;
+	int nlt_array_reg = first_reg + REGISTER_NLT_ARRAY;
+	int ndlt_array_reg = first_reg + REGISTER_NDLT_ARRAY;
+	int sample_array_reg = first_reg + REGISTER_SAMPLE_ARRAY;
+	int prev_reg = first_reg + REGISTER_PREV;
+
+	assert(stat_reg == first_reg + REGISTER_INDEX_ID + 1);
+	assert(neq_reg == stat_reg + 1);
+	assert(nlt_reg == neq_reg + 1);
+	assert(ndlt_reg == nlt_reg + 1);
+	assert(sample_reg == ndlt_reg + 1);
+	assert(nlt_array_reg == neq_array_reg + SQL_STAT4_SAMPLES);
+	assert(ndlt_array_reg == nlt_array_reg + SQL_STAT4_SAMPLES);
+	assert(sample_array_reg == ndlt_array_reg + SQL_STAT4_SAMPLES);
+
+	int part_count = idx->def->key_def->part_count;
+
+	int sample_key_reg = prev_reg + part_count;
+	parse->nMem = MAX(parse->nMem, prev_reg + part_count);
+
+	callStatGet(v, stat_accum_reg, STAT_GET_STAT1, stat_reg);
+
+	sqlite3VdbeAddOp2(v, OP_Integer, 0, tmp_reg);
+	int is_null_addr = sqlite3VdbeMakeLabel(v);
+	for (int i = 0; i < SQL_STAT4_SAMPLES; ++i) {
 		int next_addr = sqlite3VdbeCurrentAddr(v);
-		callStatGet(v, stat4_reg, STAT_GET_KEY, sample_key_reg);
-		int is_null_addr = sqlite3VdbeAddOp1(v, OP_IsNull,
-						     sample_key_reg);
-		callStatGet(v, stat4_reg, STAT_GET_NEQ, eq_reg);
-		callStatGet(v, stat4_reg, STAT_GET_NLT, lt_reg);
-		callStatGet(v, stat4_reg, STAT_GET_NDLT, dlt_reg);
+		callStatGet(v, stat_accum_reg, STAT_GET_KEY, sample_key_reg);
+		sqlite3VdbeAddOp2(v, OP_IsNull, sample_key_reg, is_null_addr);
+		callStatGet(v, stat_accum_reg, STAT_GET_NEQ, neq_array_reg + i);
+		callStatGet(v, stat_accum_reg, STAT_GET_NLT, nlt_array_reg + i);
+		callStatGet(v, stat_accum_reg, STAT_GET_NDLT,
+			    ndlt_array_reg + i);
 		sqlite3VdbeAddOp4Int(v, OP_NotFound, tab_cursor, next_addr,
 				     sample_key_reg, 0);
 		/*
@@ -1025,16 +968,94 @@ vdbe_emit_analyze_space(struct Parse *parse, struct space *space)
 			uint32_t tabl_col = idx->def->key_def->parts[i].fieldno;
 			sqlite3ExprCodeGetColumnOfTable(v, space->def,
 							tab_cursor, tabl_col,
-							col_reg + i);
+							prev_reg + i);
 		}
-		sqlite3VdbeAddOp3(v, OP_MakeRecord, col_reg, part_count,
-				  sample_reg);
-		sqlite3VdbeAddOp3(v, OP_MakeRecord, tab_name_reg, 6, tmp_reg);
+		sqlite3VdbeAddOp3(v, OP_MakeRecord, prev_reg, part_count,
+				  sample_array_reg + i);
+		sqlite3VdbeAddOp2(v, OP_Integer, i + 1, tmp_reg);
+	}
+
+	sqlite3VdbeResolveLabel(v, is_null_addr);
+	sqlite3VdbeAddOp3(v, OP_MakeRecord, neq_array_reg, tmp_reg, neq_reg);
+	sqlite3VdbeChangeP5(v, OPFLAG_P2_IS_REG);
+	sqlite3VdbeAddOp3(v, OP_MakeRecord, nlt_array_reg, tmp_reg, nlt_reg);
+	sqlite3VdbeChangeP5(v, OPFLAG_P2_IS_REG);
+	sqlite3VdbeAddOp3(v, OP_MakeRecord, ndlt_array_reg, tmp_reg, ndlt_reg);
+	sqlite3VdbeChangeP5(v, OPFLAG_P2_IS_REG);
+	sqlite3VdbeAddOp3(v, OP_MakeRecord, sample_array_reg, tmp_reg,
+			  sample_reg);
+	sqlite3VdbeChangeP5(v, OPFLAG_P2_IS_REG);
+}
+
+
+/**
+ * Generate code to do an analysis of all indices associated with
+ * a single table.
+ *
+ * @param parse Current parsing context.
+ * @param space Space to be analyzed.
+ */
+static void
+vdbe_emit_analyze_space(struct Parse *parse, struct space *space)
+{
+	assert(space != NULL);
+	struct space *stat = space_by_id(BOX_SQL_STAT_ID);
+	assert(stat != NULL);
+	if (space_is_system(space))
+		return;
+
+	/*
+	 * Open a read-only cursor on the table. Also allocate
+	 * a cursor number to use for scanning indexes.
+	 */
+	int tab_cursor = parse->nTab;
+	parse->nTab += 2;
+	assert(space->index_count != 0);
+
+	struct Vdbe *v = sqlite3GetVdbe(parse);
+	assert(v != NULL);
+
+	/*
+	 * Allocate registers. Some more register will be
+	 * allocated later.
+	 */
+	int first_reg = parse->nMem;
+	parse->nMem += REGISTER_PREV;
+
+	int space_id_reg = first_reg + REGISTER_SPACE_ID;
+	int index_id_reg = first_reg + REGISTER_INDEX_ID;
+	int tmp_reg = first_reg + REGISTER_TMP;
+
+	sqlite3VdbeAddOp4(v, OP_IteratorOpen, tab_cursor, 0, 0, (void *) space,
+			  P4_SPACEPTR);
+	sqlite3VdbeAddOp2(v, OP_Integer, space->def->id, space_id_reg);
+	for (uint32_t j = 0; j < space->index_count; ++j) {
+		struct index *idx = space->index[j];
+		/* Open a cursor on the index being analyzed. */
+		int idx_cursor;
+		if (j != 0) {
+			idx_cursor = parse->nTab - 1;
+			sqlite3VdbeAddOp4(v, OP_IteratorOpen, idx_cursor,
+					  idx->def->iid, 0,
+					  (void *) space, P4_SPACEPTR);
+			VdbeComment((v, "%s", idx->def->name));
+		} else {
+			/* We have already opened cursor on PK. */
+			idx_cursor = tab_cursor;
+		}
+		sqlite3VdbeAddOp2(v, OP_Integer, idx->def->iid, index_id_reg);
+		VdbeComment((v, "Analysis for %s.%s", space_name(space),
+			     idx->def->name));
+
+		vdbe_emit_analyze_space_init(parse, idx, idx_cursor, first_reg);
+		int rewind_addr = sqlite3VdbeAddOp1(v, OP_Rewind, idx_cursor);
+		vdbe_emit_analyze_space_execute(parse, space, idx, idx_cursor,
+						first_reg);
+		vdbe_emit_analyze_space_load(parse, space, idx, tab_cursor,
+					     first_reg);
+		sqlite3VdbeAddOp3(v, OP_MakeRecord, space_id_reg, 7, tmp_reg);
 		sqlite3VdbeAddOp4(v, OP_IdxReplace, tmp_reg, 0, 0,
-				  (char *)stat4, P4_SPACEPTR);
-		/* P1==1 for end-of-loop. */
-		sqlite3VdbeAddOp2(v, OP_Goto, 1, next_addr);
-		sqlite3VdbeJumpHere(v, is_null_addr);
+				  (char *)stat, P4_SPACEPTR);
 		/* End of analysis. */
 		sqlite3VdbeJumpHere(v, rewind_addr);
 	}
@@ -1070,7 +1091,7 @@ static void
 sql_analyze_database(struct Parse *parser)
 {
 	sql_set_multi_write(parser, false);
-	vdbe_emit_stat_space_open(parser, NULL);
+	vdbe_emit_stat_space_open(parser, BOX_ID_NIL);
 	space_foreach(sql_space_foreach_analyze, (void *)parser);
 	loadAnalysis(parser);
 }
@@ -1091,7 +1112,7 @@ vdbe_emit_analyze_table(struct Parse *parse, struct space *space)
 	 * There are two system spaces for statistics: _sql_stat1
 	 * and _sql_stat4.
 	 */
-	vdbe_emit_stat_space_open(parse, space->def->name);
+	vdbe_emit_stat_space_open(parse, space->def->id);
 	vdbe_emit_analyze_space(parse, space);
 	loadAnalysis(parse);
 }
@@ -1215,7 +1236,7 @@ decode_stat_string(const char *stat_string, int stat_size, tRowcnt *stat_exact,
  * @param argv Callback arguments.
  * @retval 0 on success, -1 otherwise.
  */
-static int
+int
 analysis_loader(void *data, int argc, char **argv, char **unused)
 {
 	assert(argc == 3);
@@ -1347,6 +1368,54 @@ sample_compare(const void *a, const void *b, void *arg)
 			   ((struct index_sample *) b)->sample_key, def);
 }
 
+static int
+load_stat1(struct index_stat *stat, struct index *index, const char *stat1_str)
+{
+	/*
+	 * Additional field is used to describe total
+	 * count of tuples in index. Although now all
+	 * indexes feature the same number of tuples,
+	 * partial indexes are going to be implemented
+	 * someday.
+	 */
+	uint32_t column_count = index->def->key_def->part_count + 1;
+	/*
+	 * Stat arrays may already be set here if there
+	 * are duplicate _sql_stat1 entries for this
+	 * index. In that case just clobber the old data
+	 * with the new instead of allocating a new array.
+	 */
+	uint32_t stat1_size = column_count * sizeof(uint32_t);
+	stat->tuple_stat1 = region_alloc(&fiber()->gc, stat1_size);
+	if (stat->tuple_stat1 == NULL) {
+		diag_set(OutOfMemory, stat1_size, "region", "tuple_stat1");
+		return -1;
+	}
+	stat->tuple_log_est = region_alloc(&fiber()->gc, stat1_size);
+	if (stat->tuple_log_est == NULL) {
+		diag_set(OutOfMemory, stat1_size, "region", "tuple_log_est");
+		return -1;
+	}
+	decode_stat_string(stat1_str, column_count, stat->tuple_stat1,
+			   stat->tuple_log_est);
+	stat->is_unordered = false;
+	stat->skip_scan_enabled = true;
+	const char *z = stat1_str;
+	/* Position ptr at the end of stat string. */
+	for (; *z == ' ' || (*z >= '0' && *z <= '9'); ++z);
+	while (z[0]) {
+		if (sql_strlike_cs("unordered%", z, '[') == 0)
+			index->def->opts.stat->is_unordered = true;
+		else if (sql_strlike_cs("noskipscan%", z, '[') == 0)
+			index->def->opts.stat->skip_scan_enabled = false;
+		while (z[0] != 0 && z[0] != ' ')
+			z++;
+		while (z[0] == ' ')
+			z++;
+	}
+	return 0;
+}
+
 /**
  * Load the content from the _sql_stat4 table
  * into the relevant index->stat->samples[] arrays.
@@ -1368,47 +1437,46 @@ sample_compare(const void *a, const void *b, void *arg)
  * @retval 0 on success, -1 otherwise.
  */
 static int
-load_stat_from_space(struct sqlite3 *db, const char *sql_select_prepare,
-		     const char *sql_select_load, struct index_stat *stats)
+load_stat_from_space(struct sqlite3 *db, struct index **indexes,
+		     struct index_stat *stats)
 {
-	struct index **indexes = NULL;
-	uint32_t index_count = box_index_len(BOX_SQL_STAT4_ID, 0);
-	if (index_count > 0) {
-		size_t alloc_size = sizeof(struct index *) * index_count;
-		indexes = region_alloc(&fiber()->gc, alloc_size);
-		if (indexes == NULL) {
-			diag_set(OutOfMemory, alloc_size, "region", "indexes");
-			return -1;
-		}
-	}
+	const char *load_query = "SELECT \"space_id\", \"index_id\", "\
+				 "\"stat\", \"neq\", \"nlt\", \"ndlt\", "\
+				 "\"sample\" FROM \"_sql_stat\";";
 	sqlite3_stmt *stmt = NULL;
-	int rc = sqlite3_prepare(db, sql_select_prepare, -1, &stmt, 0);
-	if (rc)
-		goto finalize;
+	if (sqlite3_prepare(db, load_query, -1, &stmt, 0) < 0)
+		return -1;
 	uint32_t current_idx_count = 0;
 	while (sqlite3_step(stmt) == SQLITE_ROW) {
-		const char *space_name = (char *)sqlite3_column_text(stmt, 0);
-		if (space_name == NULL)
+		uint32_t space_id = sqlite3_column_int(stmt, 0);
+		if (space_id == 0)
 			continue;
-		const char *index_name = (char *)sqlite3_column_text(stmt, 1);
-		if (index_name == NULL)
+		struct space *space = space_by_id(space_id);
+		if (space == NULL)
 			continue;
-		uint32_t sample_count = sqlite3_column_int(stmt, 2);
-		struct space *space = space_by_name(space_name);
-		assert(space != NULL);
-		struct index *index;
-		uint32_t iid = box_index_id_by_name(space->def->id, index_name,
-						    strlen(index_name));
-		if (sqlite3_stricmp(space_name, index_name) == 0 &&
-		    iid == BOX_ID_NIL)
-			index = space_index(space, 0);
-		else
-			index = space_index(space, iid);
-		assert(index != NULL);
+		uint32_t iid = sqlite3_column_int(stmt, 1);
+		struct index *index = space_index(space, iid);
+		if (index == NULL)
+			continue;
+		const char *stat1 = (char *)sqlite3_column_text(stmt, 2);
+		if (stat1 == NULL)
+			continue;
+		const char *neq = (const char *)sqlite3_column_blob(stmt, 3);
+		const char *nlt = (const char *)sqlite3_column_blob(stmt, 4);
+		const char *ndlt = (const char *)sqlite3_column_blob(stmt, 5);
+		const char *sample_key = (const char *)sqlite3_column_blob(stmt, 6);
+
 		uint32_t column_count = index->def->key_def->part_count;
+
+		uint32_t sample_count = mp_decode_array(&neq);
+		mp_decode_array(&nlt);
+		mp_decode_array(&ndlt);
+		mp_decode_array(&sample_key);
+
 		struct index_stat *stat = &stats[current_idx_count];
 		stat->sample_field_count = column_count;
 		stat->sample_count = 0;
+
 		/* Space for sample structs. */
 		size_t alloc_size = sizeof(struct index_sample) * sample_count;
 		/* Space for eq, lt and dlt stats. */
@@ -1425,8 +1493,7 @@ load_stat_from_space(struct sqlite3 *db, const char *sql_select_prepare,
 		stat->samples = region_alloc(&fiber()->gc, alloc_size);
 		if (stat->samples == NULL) {
 			diag_set(OutOfMemory, alloc_size, "region", "samples");
-			rc = -1;
-			goto finalize;
+			return -1;
 		}
 		memset(stat->samples, 0, alloc_size);
 		/* Marking memory manually. */
@@ -1440,94 +1507,53 @@ load_stat_from_space(struct sqlite3 *db, const char *sql_select_prepare,
 			pSpace += column_count;
 			stat->samples[i].dlt = pSpace;
 			pSpace += column_count;
-		}
-		assert(((u8 *) pSpace) - alloc_size == (u8 *) (stat->samples));
-		indexes[current_idx_count] = index;
-		assert(current_idx_count < index_count);
-		current_idx_count++;
 
-	}
-	rc = sqlite3_finalize(stmt);
-	if (rc)
-		goto finalize;
-	rc = sqlite3_prepare(db, sql_select_load, -1, &stmt, 0);
-	if (rc)
-		goto finalize;
-	struct index *prev_index = NULL;
-	current_idx_count = 0;
-	while (sqlite3_step(stmt) == SQLITE_ROW) {
-		const char *space_name = (char *)sqlite3_column_text(stmt, 0);
-		if (space_name == NULL)
-			continue;
-		const char *index_name = (char *)sqlite3_column_text(stmt, 1);
-		if (index_name == NULL)
-			continue;
-		struct space *space = space_by_name(space_name);
-		assert(space != NULL);
-		struct index *index;
-		uint32_t iid = box_index_id_by_name(space->def->id, index_name,
-						    strlen(index_name));
-		if (iid != BOX_ID_NIL) {
-			index = space_index(space, iid);
-		} else {
-			if (sqlite3_stricmp(space_name, index_name) != 0)
+		}
+		indexes[current_idx_count] = index;
+
+		if (load_stat1(stat, index, stat1) < 0)
+			return -1;
+		for (uint32_t i = 0; i < sample_count; ++i) {
+			struct index_sample *sample = &stat->samples[i];
+			const char *data;
+			uint32_t data_len;
+			data = mp_decode_str(&neq, &data_len);
+			decode_stat_string(data, column_count, sample->eq, 0);
+			data = mp_decode_str(&nlt, &data_len);
+			decode_stat_string(data, column_count, sample->lt, 0);
+			data = mp_decode_str(&ndlt, &data_len);
+			decode_stat_string(data, column_count, sample->dlt, 0);
+			const char *key = sample_key;
+			mp_next(&sample_key);
+			sample->key_size = sample_key - key;
+			sample->sample_key = region_alloc(&fiber()->gc,
+							  sample->key_size);
+			if (sample->sample_key == NULL) {
+				sqlite3_finalize(stmt);
+				diag_set(OutOfMemory, sample->key_size,
+					 "region", "sample_key");
 				return -1;
-			index = space_index(space, 0);
-		}
-		assert(index != NULL);
-		uint32_t column_count = index->def->key_def->part_count;
-		if (index != prev_index) {
-			if (prev_index != NULL) {
-				init_avg_eq(prev_index,
-					    &stats[current_idx_count]);
-				current_idx_count++;
 			}
-			prev_index = index;
+			if (sample->key_size > 0) {
+				memcpy(sample->sample_key, key,
+				       sample->key_size);
+			}
+			stats[current_idx_count].sample_count++;
 		}
-		struct index_stat *stat = &stats[current_idx_count];
-		struct index_sample *sample =
-			&stat->samples[stats[current_idx_count].sample_count];
-		decode_stat_string((char *)sqlite3_column_text(stmt, 2),
-				   column_count, sample->eq, 0);
-		decode_stat_string((char *)sqlite3_column_text(stmt, 3),
-				   column_count, sample->lt, 0);
-		decode_stat_string((char *)sqlite3_column_text(stmt, 4),
-				   column_count, sample->dlt, 0);
-		/* Take a copy of the sample. */
-		sample->key_size = sqlite3_column_bytes(stmt, 5);
-		sample->sample_key = region_alloc(&fiber()->gc,
-						  sample->key_size);
-		if (sample->sample_key == NULL) {
-			sqlite3_finalize(stmt);
-			rc = -1;
-			diag_set(OutOfMemory, sample->key_size,
-				 "region", "sample_key");
-			goto finalize;
-		}
-		if (sample->key_size > 0) {
-			memcpy(sample->sample_key,
-			       sqlite3_column_blob(stmt, 5),
-			       sample->key_size);
-		}
-		stats[current_idx_count].sample_count++;
+		init_avg_eq(index, &stats[current_idx_count]);
+		indexes[current_idx_count] = index;
+		current_idx_count++;
 	}
-	rc = sqlite3_finalize(stmt);
-	if (rc == SQLITE_OK && prev_index != NULL)
-		init_avg_eq(prev_index, &stats[current_idx_count]);
-	assert(current_idx_count <= index_count);
 	for (uint32_t i = 0; i < current_idx_count; ++i) {
-		struct index *index = indexes[i];
-		assert(index != NULL);
 		qsort_arg(stats[i].samples,
 			  stats[i].sample_count,
 			  sizeof(struct index_sample),
-			  sample_compare, index->def->key_def);
+			  sample_compare, indexes[i]->def->key_def);
 	}
- finalize:
-	return rc;
+	return current_idx_count;
 }
 
-static int
+int
 load_stat_to_index(struct sqlite3 *db, const char *sql_select_load,
 		   struct index_stat **stats)
 {
@@ -1678,73 +1704,37 @@ stat_copy(struct index_stat *dest, const struct index_stat *src)
 	}
 }
 
-int
-sql_analysis_load(struct sqlite3 *db)
+static int
+load_stat_to_index_new(struct index **indexes, int index_count,
+		       struct index_stat *stats)
 {
-	ssize_t index_count = box_index_len(BOX_SQL_STAT1_ID, 0);
-	if (index_count < 0)
-		return SQL_TARANTOOL_ERROR;
-	if (box_txn_begin() != 0)
-		goto fail;
-	size_t stats_size = index_count * sizeof(struct index_stat);
-	struct index_stat *stats = region_alloc(&fiber()->gc, stats_size);
-	if (stats == NULL) {
-		diag_set(OutOfMemory, stats_size, "region", "stats");
-		goto fail;
-	}
-	memset(stats, 0, stats_size);
-	struct analysis_index_info info;
-	info.db = db;
-	info.stats = stats;
-	info.index_count = 0;
-	const char *load_stat1 =
-		"SELECT \"tbl\",\"idx\",\"stat\" FROM \"_sql_stat1\"";
-	/* Load new statistics out of the _sql_stat1 table. */
-	if (sqlite3_exec(db, load_stat1, analysis_loader, &info, 0) != 0)
-		goto fail;
-	if (info.index_count == 0) {
-		box_txn_commit();
-		return SQLITE_OK;
-	}
-	/*
-	 * This query is used to allocate enough memory for
-	 * statistics. Result rows are given in a form:
-	 * <table name>, <index name>, <count of samples>
-	 */
-	const char *init_query = "SELECT \"tbl\",\"idx\",count(*) FROM "
-				 "\"_sql_stat4\" GROUP BY \"tbl\",\"idx\"";
-	/* Query for loading statistics into in-memory structs. */
-	const char *load_query = "SELECT \"tbl\",\"idx\",\"neq\",\"nlt\","
-				 "\"ndlt\",\"sample\" FROM \"_sql_stat4\"";
-	/* Load the statistics from the _sql_stat4 table. */
-	if (load_stat_from_space(db, init_query, load_query, stats) != 0)
-		goto fail;
 	/*
 	 * Now we have complete statistics for each index
 	 * allocated on the region. Time to copy it on the heap.
 	 */
-	size_t heap_stats_size = info.index_count * sizeof(struct index_stat *);
+	size_t heap_stats_size = index_count * sizeof(struct index_stat *);
 	struct index_stat **heap_stats = region_alloc(&fiber()->gc,
 						      heap_stats_size);
 	if (heap_stats == NULL) {
-		diag_set(OutOfMemory, heap_stats_size, "malloc", "heap_stats");
-		goto fail;
+		diag_set(OutOfMemory, heap_stats_size, "region_alloc",
+			 "heap_stats");
+		return -1;
 	}
 	/*
 	 * We are using 'everything or nothing' policy:
 	 * if there is no enough memory for statistics even for
 	 * one index, then refresh it for no one.
 	 */
-	for (uint32_t i = 0; i < info.index_count; ++i) {
+	for (int i = 0; i < index_count; ++i) {
 		size_t size = index_stat_sizeof(stats[i].samples,
 						stats[i].sample_count,
 						stats[i].sample_field_count);
 		heap_stats[i] = malloc(size);
 		if (heap_stats[i] == NULL) {
 			diag_set(OutOfMemory, size, "malloc", "heap_stats");
-			for (uint32_t j = 0; j < i; ++j)
+			for (int j = 0; j < i; ++j)
 				free(heap_stats[j]);
-			goto fail;
+			return -1;
 		}
 	}
 	/*
@@ -1752,15 +1742,49 @@ sql_analysis_load(struct sqlite3 *db)
 	 * region doesn't fit into one memory chunk. Lets
 	 * manually copy memory chunks and mark memory.
 	 */
-	for (uint32_t i = 0; i < info.index_count; ++i)
+	for (int i = 0; i < index_count; ++i)
 		stat_copy(heap_stats[i], &stats[i]);
-	/*
-	 * Ordered query is needed to be sure that indexes come
-	 * in the same order as in previous SELECTs.
-	 */
-	const char *order_query = "SELECT \"tbl\",\"idx\" FROM "
-				  "\"_sql_stat4\" GROUP BY \"tbl\",\"idx\"";
-	if (load_stat_to_index(db, order_query, heap_stats) != 0)
+	/* Load stats to index. */
+	for (int i = 0; i < index_count; ++i) {
+		free(indexes[i]->def->opts.stat);
+		indexes[i]->def->opts.stat = heap_stats[i];
+	}
+	return 0;
+}
+
+int
+sql_analysis_load(struct sqlite3 *db)
+{
+	ssize_t index_count = box_index_len(BOX_SQL_STAT_ID, 0);
+	if (index_count < 0)
+		return SQL_TARANTOOL_ERROR;
+	if (box_txn_begin() != 0)
+		goto fail;
+	if (index_count == 0) {
+		box_txn_commit();
+		return SQLITE_OK;
+	}
+	size_t stats_size = index_count * sizeof(struct index_stat);
+	struct index_stat *stats = region_alloc(&fiber()->gc, stats_size);
+	if (stats == NULL) {
+		diag_set(OutOfMemory, stats_size, "region", "stats");
+		goto fail;
+	}
+	memset(stats, 0, stats_size);
+
+	size_t indexes_size = index_count * sizeof(struct index *);
+	struct index **indexes = region_alloc(&fiber()->gc, indexes_size);
+	if (stats == NULL) {
+		diag_set(OutOfMemory, indexes_size, "region", "indexes");
+		goto fail;
+	}
+	memset(indexes, 0, indexes_size);
+
+	/* Load the statistics from the _sql_stat table. */
+	int index_count_new = load_stat_from_space(db, indexes, stats);
+	if (index_count_new < 0)
+		goto fail;
+	if (load_stat_to_index_new(indexes, index_count_new, stats) != 0)
 		goto fail;
 	if (box_txn_commit() != 0)
 		return SQL_TARANTOOL_ERROR;

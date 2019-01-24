@@ -2937,9 +2937,10 @@ case OP_MakeRecord: {
 		 * sure previously allocated memory has gone.
 		 */
 		sqlite3VdbeMemRelease(pOut);
-		pOut->flags = MEM_Blob | MEM_Ephem;
+		pOut->flags = MEM_Blob | MEM_Ephem | MEM_Subtype;
 		pOut->n = tuple_size;
 		pOut->z = tuple;
+		pOut->subtype = SQL_SUBTYPE_MSGPACK;
 	}
 	if (rc)
 		goto no_mem;
