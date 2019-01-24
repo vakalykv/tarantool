@@ -107,6 +107,7 @@ enum {
 	/** Space id of _space_sequence. */
 	BOX_SPACE_SEQUENCE_ID = 340,
 	/** Space ids for SQL statictics. */
+	BOX_SQL_STAT_ID = 347,
 	BOX_SQL_STAT1_ID = 348,
 	BOX_SQL_STAT4_ID = 349,
 	/** Space id of _fk_constraint. */
@@ -239,6 +240,17 @@ enum {
 	BOX_FK_CONSTRAINT_FIELD_ON_UPDATE = 6,
 	BOX_FK_CONSTRAINT_FIELD_CHILD_COLS = 7,
 	BOX_FK_CONSTRAINT_FIELD_PARENT_COLS = 8,
+};
+
+/** _sql_stat fields. */
+enum {
+	BOX_SQL_STAT_FIELD_SPACE_ID = 0,
+	BOX_SQL_STAT_FIELD_INDEX_ID = 1,
+	BOX_SQL_STAT_FIELD_STAT = 2,
+	BOX_SQL_STAT_FIELD_NEQ = 3,
+	BOX_SQL_STAT_FIELD_NLT = 4,
+	BOX_SQL_STAT_FIELD_NDLT = 5,
+	BOX_SQL_STAT_FIELD_SAMPLE = 6,
 };
 
 /*
