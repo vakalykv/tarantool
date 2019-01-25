@@ -53,3 +53,20 @@ box.sql.execute("DROP TABLE T_OUT;")
 test_run:switch('default')
 test_run:cmd('stop server upgrade')
 test_run:cmd('cleanup server upgrade')
+
+-- Test Tarantool 2.1.0 to 2.1.1 migration.
+work_dir = 'sql/upgrade/2.1.0/'
+test_run:cmd('create server upgrade210 with script="sql/upgrade/upgrade.lua", workdir="' .. work_dir .. '"')
+test_run:cmd('start server upgrade210')
+
+test_run:switch('upgrade210')
+
+s = box.space._space.index['name']:get('T2')
+s
+i = box.space._index:select(s.id)
+i
+i[1].opts.sql == nil
+
+test_run:switch('default')
+test_run:cmd('stop server upgrade210')
+test_run:cmd('cleanup server upgrade210')

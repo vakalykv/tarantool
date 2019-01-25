@@ -167,6 +167,8 @@ opts_parse_key(void *opts, const struct opt_def *reg, const char *key,
 		if (key_len != strlen(def->name) ||
 		    memcmp(key, def->name, key_len) != 0)
 			continue;
+		if (def->is_legacy)
+			goto skip;
 
 		return opt_set(opts, def, data, region, errcode, field_no);
 	}
@@ -177,6 +179,7 @@ opts_parse_key(void *opts, const struct opt_def *reg, const char *key,
 		diag_set(ClientError, errcode, field_no, errmsg);
 		return -1;
 	}
+skip:
 	mp_next(data);
 	return 0;
 }
