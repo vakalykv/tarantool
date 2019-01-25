@@ -69,6 +69,7 @@
 
 #include "box/field_def.h"
 #include "box/sql.h"
+#include "box/ck_constraint.h"
 #include "box/txn.h"
 #include "trivia/util.h"
 
@@ -2791,6 +2792,15 @@ struct Parse {
 	 */
 	struct rlist new_fkey;
 	/**
+	 * Number of check constraints declared within
+	 * CREATE TABLE statement.
+	 */
+	uint32_t ck_constraint_count;
+	/**
+	 * Check constraint appeared in CREATE TABLE stmt.
+	 */
+	struct rlist new_ck_constraint;
+	/**
 	 * List of all records that were inserted in system spaces
 	 * in current statement.
 	 */
@@ -3385,7 +3395,7 @@ void sqlite3AddPrimaryKey(Parse *, ExprList *, int, enum sort_order);
  * @param span Expression span object.
  */
 void
-sql_add_check_constraint(Parse *parser, ExprSpan *span);
+sql_add_ck_constraint(struct Parse *parser, struct ExprSpan *span);
 
 void sqlite3AddDefaultValue(Parse *, ExprSpan *);
 void sqlite3AddCollateType(Parse *, Token *);

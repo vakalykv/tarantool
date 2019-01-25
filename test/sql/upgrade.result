@@ -180,11 +180,10 @@ s = box.space._space.index['name']:get('T2')
 s
 ---
 - [512, 1, 'T2', 'memtx', 3, {'sql': 'CREATE TABLE t2(x INTEGER CONSTRAINT aaa CHECK
-      ( x<5 ), y REAL CHECK( y>x ), z  INT primary key)', 'checks': [{'name': 'AAA',
-        'expr': 'x<5'}, {'expr': 'y>x'}]}, [{'affinity': 68, 'type': 'scalar', 'nullable_action': 'none',
-      'name': 'X', 'is_nullable': true}, {'affinity': 69, 'type': 'scalar', 'nullable_action': 'none',
-      'name': 'Y', 'is_nullable': true}, {'affinity': 68, 'type': 'integer', 'nullable_action': 'abort',
-      'name': 'Z', 'is_nullable': false}]]
+      ( x<5 ), y REAL CHECK( y>x ), z  INT primary key)'}, [{'affinity': 68, 'type': 'scalar',
+      'is_nullable': true, 'name': 'X', 'nullable_action': 'none'}, {'affinity': 69,
+      'type': 'scalar', 'is_nullable': true, 'name': 'Y', 'nullable_action': 'none'},
+    {'affinity': 68, 'type': 'integer', 'is_nullable': false, 'name': 'Z', 'nullable_action': 'abort'}]]
 ...
 i = box.space._index:select(s.id)
 ---

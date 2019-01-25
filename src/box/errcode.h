@@ -200,12 +200,12 @@ struct errcode_record {
 	/*145 */_(ER_NO_SUCH_SEQUENCE,		"Sequence '%s' does not exist") \
 	/*146 */_(ER_SEQUENCE_EXISTS,		"Sequence '%s' already exists") \
 	/*147 */_(ER_SEQUENCE_OVERFLOW,		"Sequence '%s' has overflowed") \
-	/*148 */_(ER_UNUSED5,			"") \
+	/*148 */_(ER_CREATE_CK_CONSTRAINT,	"Failed to create check constraint '%s': %s") \
 	/*149 */_(ER_SPACE_FIELD_IS_DUPLICATE,	"Space field '%s' is duplicate") \
 	/*150 */_(ER_CANT_CREATE_COLLATION,	"Failed to initialize collation: %s.") \
 	/*151 */_(ER_WRONG_COLLATION_OPTIONS,	"Wrong collation options (field %u): %s") \
 	/*152 */_(ER_NULLABLE_PRIMARY,		"Primary index of the space '%s' can not contain nullable parts") \
-	/*153 */_(ER_UNUSED,			"") \
+	/*153 */_(ER_CK_CONSTRAINT_FAILED,	"Check constraint failed: %s") \
 	/*154 */_(ER_TRANSACTION_YIELD,		"Transaction has been aborted by a fiber yield") \
 	/*155 */_(ER_NO_SUCH_GROUP,		"Replication group '%s' does not exist") \
 	/*156 */_(ER_SQL_BIND_VALUE,            "Bind value for parameter %s is out of range for type %s") \

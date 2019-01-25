@@ -935,34 +935,30 @@ vdbe_emit_constraint_checks(struct Parse *parse_context, struct Table *tab,
 	if (on_conflict == ON_CONFLICT_ACTION_DEFAULT)
 		on_conflict = ON_CONFLICT_ACTION_ABORT;
 	/* Test all CHECK constraints. */
-	struct ExprList *checks = space_checks_expr_list(def->id);
 	enum on_conflict_action on_conflict_check = on_conflict;
 	if (on_conflict == ON_CONFLICT_ACTION_REPLACE)
 		on_conflict_check = ON_CONFLICT_ACTION_ABORT;
-	if (checks != NULL) {
+	if (!rlist_empty(&space->ck_constraint))
 		parse_context->ckBase = new_tuple_reg;
-		for (int i = 0; i < checks->nExpr; i++) {
-			struct Expr *expr = checks->a[i].pExpr;
-			if (is_update &&
-			    checkConstraintUnchanged(expr, upd_cols))
-				continue;
-			int all_ok = sqlite3VdbeMakeLabel(v);
-			sqlite3ExprIfTrue(parse_context, expr, all_ok,
-					  SQLITE_JUMPIFNULL);
-			if (on_conflict == ON_CONFLICT_ACTION_IGNORE) {
-				sqlite3VdbeGoto(v, ignore_label);
-			} else {
-				char *name = checks->a[i].zName;
-				if (name == NULL)
-					name = def->name;
-				sqlite3HaltConstraint(parse_context,
-						      SQLITE_CONSTRAINT_CHECK,
-						      on_conflict_check, name,
-						      P4_TRANSIENT,
-						      P5_ConstraintCheck);
-			}
+	struct ck_constraint *ck_constraint;
+	rlist_foreach_entry(ck_constraint, &space->ck_constraint, link) {
+		struct Expr *expr = ck_constraint->expr;
+		if (is_update && checkConstraintUnchanged(expr, upd_cols) != 0)
+			continue;
+		int all_ok = sqlite3VdbeMakeLabel(v);
+		sqlite3ExprIfTrue(parse_context, expr, all_ok,
+				  SQLITE_JUMPIFNULL);
+		if (on_conflict == ON_CONFLICT_ACTION_IGNORE) {
+			sqlite3VdbeGoto(v, ignore_label);
 			sqlite3VdbeResolveLabel(v, all_ok);
+		} else {
+			char *name = ck_constraint->def->name;
+			sqlite3HaltConstraint(parse_context,
+					      SQLITE_CONSTRAINT_CHECK,
+					      on_conflict_check, name,
+					      P4_TRANSIENT, P5_ConstraintCheck);
 		}
+		sqlite3VdbeResolveLabel(v, all_ok);
 	}
 	sql_emit_table_affinity(v, tab->def, new_tuple_reg);
 	/*
@@ -1248,14 +1244,12 @@ xferOptimization(Parse * pParse,	/* Parser context */
 		if (pSrcIdx == NULL)
 			return 0;
 	}
-	/* Get server checks. */
-	ExprList *pCheck_src = space_checks_expr_list(src->def->id);
-	ExprList *pCheck_dest = space_checks_expr_list(dest->def->id);
-	if (pCheck_dest != NULL &&
-	    sqlite3ExprListCompare(pCheck_src, pCheck_dest, -1) != 0) {
-		/* Tables have different CHECK constraints.  Ticket #2252 */
+	/*
+	 * Dissallow the transfer optimization if the destination
+	 * table contains any check constraints.
+	 */
+	if (!rlist_empty(&dest->ck_constraint))
 		return 0;
-	}
 	/* Disallow the transfer optimization if the destination table constains
 	 * any foreign key constraints.  This is more restrictive than necessary.
 	 * So the extra complication to make this rule less restrictive is probably

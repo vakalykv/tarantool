@@ -265,7 +265,7 @@ ccons ::= PRIMARY KEY sortorder(Z) autoinc(I).
 ccons ::= UNIQUE.                {sql_create_index(pParse,0,0,0,0,
                                                    SORT_ORDER_ASC, false,
                                                    SQL_INDEX_TYPE_CONSTRAINT_UNIQUE);}
-ccons ::= CHECK LP expr(X) RP.   {sql_add_check_constraint(pParse,&X);}
+ccons ::= CHECK LP expr(X) RP.   {sql_add_ck_constraint(pParse,&X);}
 ccons ::= REFERENCES nm(T) eidlist_opt(TA) refargs(R).
                                  {sql_create_foreign_key(pParse, NULL, NULL, NULL, &T, TA, false, R);}
 ccons ::= defer_subclause(D).    {fkey_change_defer_mode(pParse, D);}
@@ -317,7 +317,7 @@ tcons ::= UNIQUE LP sortlist(X) RP.
                                                    SORT_ORDER_ASC,false,
                                                    SQL_INDEX_TYPE_CONSTRAINT_UNIQUE);}
 tcons ::= CHECK LP expr(E) RP onconf.
-                                 {sql_add_check_constraint(pParse,&E);}
+                                 {sql_add_ck_constraint(pParse,&E);}
 tcons ::= FOREIGN KEY LP eidlist(FA) RP
           REFERENCES nm(T) eidlist_opt(TA) refargs(R) defer_subclause_opt(D). {
     sql_create_foreign_key(pParse, NULL, NULL, FA, &T, TA, D, R);

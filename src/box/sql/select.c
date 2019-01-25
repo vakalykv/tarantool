@@ -6408,6 +6408,5 @@ sql_expr_extract_select(struct Parse *parser, struct Select *select)
 	assert(expr_list->nExpr == 1);
 	parser->parsed_ast_type = AST_TYPE_EXPR;
 	parser->parsed_ast.expr = sqlite3ExprDup(parser->db,
-						 expr_list->a->pExpr,
-						 EXPRDUP_REDUCE);
+						 expr_list->a->pExpr, 0);
 }

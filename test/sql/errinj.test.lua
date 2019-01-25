@@ -117,3 +117,22 @@ box.sql.execute("ALTER TABLE t3 DROP CONSTRAINT fk1;")
 box.sql.execute("INSERT INTO t3 VALUES(1, 1, 3);")
 errinj.set("ERRINJ_WAL_IO", false)
 box.sql.execute("DROP TABLE t3;")
+
+-- Tests which are aimed at verifying work of commit/rollback
+-- triggers on _ck_constraint space.
+--
+errinj = box.error.injection
+s = box.schema.space.create('test', {format = {{name = 'X', type = 'unsigned'}}})
+pk = box.space.test:create_index('pk')
+
+errinj.set("ERRINJ_WAL_IO", true)
+_ = box.space._ck_constraint:insert({'CK_CONSTRAINT_01', s.id, 'X<5'})
+errinj.set("ERRINJ_WAL_IO", false)
+_ = box.space._ck_constraint:insert({'CK_CONSTRAINT_01', s.id, 'X<5'})
+box.sql.execute("INSERT INTO \"test\" VALUES(5);")
+errinj.set("ERRINJ_WAL_IO", true)
+_ = box.space._ck_constraint:replace({'CK_CONSTRAINT_01', s.id, 'X<=5'})
+errinj.set("ERRINJ_WAL_IO", false)
+_ = box.space._ck_constraint:replace({'CK_CONSTRAINT_01', s.id, 'X<=5'})
+box.sql.execute("INSERT INTO \"test\" VALUES(5);")
+box.space.test:drop()
