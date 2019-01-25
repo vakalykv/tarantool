@@ -287,7 +287,7 @@ sqlite3Update(Parse * pParse,		/* The parser context */
 		 * Set flag to save memory allocating one by
 		 * malloc.
 		 */
-		sqlite3VdbeChangeP5(v, 1);
+		sqlite3VdbeChangeP5(v, OPFLAG_IS_EPHEMERAL);
 		sqlite3VdbeAddOp2(v, OP_IdxInsert, regKey, reg_eph);
 	}
 	/* End the database scan loop.

@@ -2838,6 +2838,11 @@ struct Parse {
 #define OPFLAG_SAVEPOSITION  0x02	/* OP_Delete: keep cursor position */
 #define OPFLAG_AUXDELETE     0x04	/* OP_Delete: index in a DELETE op */
 
+/* OP_MakeRecord: inserton into ephemeral space. */
+#define OPFLAG_IS_EPHEMERAL  0x01
+/* OP_MakeRecord: p2 is number of register contains true value. */
+#define OPFLAG_P2_IS_REG     0x02
+
 #define OPFLAG_SAME_FRAME    0x01	/* OP_FCopy: use same frame for source
 					 * register
 					 */

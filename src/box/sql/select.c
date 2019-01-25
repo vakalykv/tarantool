@@ -1140,7 +1140,7 @@ selectInnerLoop(Parse * pParse,		/* The parser context */
 			sqlite3VdbeAddOp3(v, OP_MakeRecord, regResult,
 					  nResultCol, r1 + nPrefixReg);
 			/* Set flag to save memory allocating one by malloc. */
-			sqlite3VdbeChangeP5(v, 1);
+			sqlite3VdbeChangeP5(v, OPFLAG_IS_EPHEMERAL);
 #ifndef SQLITE_OMIT_CTE
 			if (eDest == SRT_DistFifo) {
 				/* If the destination is DistFifo, then cursor (iParm+1) is open
@@ -1177,7 +1177,7 @@ selectInnerLoop(Parse * pParse,		/* The parser context */
 				sqlite3VdbeAddOp3(v, OP_Copy, regResult, regCopy, nResultCol - 1);
 				sqlite3VdbeAddOp3(v, OP_MakeRecord, regCopy, nResultCol + 1, regRec);
 				/* Set flag to save memory allocating one by malloc. */
-				sqlite3VdbeChangeP5(v, 1);
+				sqlite3VdbeChangeP5(v, OPFLAG_IS_EPHEMERAL);
 				sqlite3VdbeAddOp2(v, OP_IdxInsert, regRec, pDest->reg_eph);
 				sqlite3ReleaseTempReg(pParse, regRec);
 				sqlite3ReleaseTempRange(pParse, regCopy, nResultCol + 1);
@@ -3049,7 +3049,7 @@ generateOutputSubroutine(struct Parse *parse, struct Select *p,
 			sqlite3VdbeAddOp3(v, OP_MakeRecord, regCopy,
 					  in->nSdst + 1, regRec);
 			/* Set flag to save memory allocating one by malloc. */
-			sqlite3VdbeChangeP5(v, 1);
+			sqlite3VdbeChangeP5(v, OPFLAG_IS_EPHEMERAL);
 			sqlite3VdbeAddOp2(v, OP_IdxInsert, regRec, dest->reg_eph);
 			sqlite3ReleaseTempRange(parse, regCopy, in->nSdst + 1);
 			sqlite3ReleaseTempReg(parse, regRec);
