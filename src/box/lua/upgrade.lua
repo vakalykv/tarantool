@@ -71,6 +71,7 @@ local function set_system_triggers(val)
     box.space._priv:run_triggers(val)
     box.space._trigger:run_triggers(val)
     box.space._collation:run_triggers(val)
+    box.space._fk_constraint:run_triggers(val)
 end
 
 --------------------------------------------------------------------------------
@@ -88,6 +89,7 @@ local function erase()
     truncate(box.space._truncate)
     truncate(box.space._collation)
     truncate(box.space._trigger)
+    truncate(box.space._fk_constraint)
     --truncate(box.space._schema)
     box.space._schema:delete('version')
     box.space._schema:delete('max_id')
