@@ -934,7 +934,7 @@ sqlite3WhereCodeOneLoopStart(WhereInfo * pWInfo,	/* Complete information about t
 				  pTabItem->addrFillSub);
 		pLevel->p2 = sqlite3VdbeAddOp2(v, OP_Yield, regYield, addrBrk);
 		VdbeCoverage(v);
-		VdbeComment((v, "next row of \"%s\"", pTabItem->pTab->def->name));
+		VdbeComment((v, "next row of \"%s\"", pTabItem->space->def->name));
 		pLevel->op = OP_Goto;
 	} else if (pLoop->wsFlags & WHERE_INDEXED) {
 		/* Case 4: A scan using an index.
@@ -1353,9 +1353,9 @@ sqlite3WhereCodeOneLoopStart(WhereInfo * pWInfo,	/* Complete information about t
 		int ii;		/* Loop counter */
 		u16 wctrlFlags;	/* Flags for sub-WHERE clause */
 		Expr *pAndExpr = 0;	/* An ".. AND (...)" expression */
-		Table *pTab = pTabItem->pTab;
+		struct space *space = pTabItem->space;
 		struct key_def *pk_key_def =
-			space_index(pTab->space, 0)->def->key_def;
+			space_index(space, 0)->def->key_def;
 		uint32_t pk_part_count = pk_key_def->part_count;
 
 		pTerm = pLoop->aLTerm[0];
@@ -1520,7 +1520,7 @@ sqlite3WhereCodeOneLoopStart(WhereInfo * pWInfo,	/* Complete information about t
 								fieldno;
 							sqlite3ExprCodeGetColumnToReg
 								(pParse,
-								 pTab->def,
+								 space->def,
 								 fieldno,
 								 iCur,
 								 r + iPk);

@@ -1477,26 +1477,23 @@ sqlite3WhereTabFuncArgs(Parse * pParse,	/* Parsing context */
 			WhereClause * pWC	/* Xfer function arguments to here */
     )
 {
-	Table *pTab;
 	int j, k;
 	ExprList *pArgs;
 	Expr *pColRef;
 	Expr *pTerm;
 	if (pItem->fg.isTabFunc == 0)
 		return;
-	pTab = pItem->pTab;
-	assert(pTab != 0);
+	struct space_def *space_def = pItem->space->def;
 	pArgs = pItem->u1.pFuncArg;
 	if (pArgs == 0)
 		return;
 	for (j = k = 0; j < pArgs->nExpr; j++) {
-		while (k < (int)pTab->def->field_count) {
+		while (k < (int)space_def->field_count)
 			k++;
-		}
-		if (k >= (int)pTab->def->field_count) {
+		if (k >= (int)space_def->field_count) {
 			sqlite3ErrorMsg(pParse,
 					"too many arguments on %s() - max %d",
-					pTab->def->name, j);
+					space_def->name, j);
 			return;
 		}
 		pColRef = sqlite3ExprAlloc(pParse->db, TK_COLUMN, 0, 0);
@@ -1504,7 +1501,7 @@ sqlite3WhereTabFuncArgs(Parse * pParse,	/* Parsing context */
 			return;
 		pColRef->iTable = pItem->iCursor;
 		pColRef->iColumn = k++;
-		pColRef->space_def = pTab->def;
+		pColRef->space_def = space_def;
 		pTerm = sqlite3PExpr(pParse, TK_EQ, pColRef,
 				     sqlite3ExprDup(pParse->db,
 						    pArgs->a[j].pExpr, 0));

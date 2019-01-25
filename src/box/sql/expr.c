@@ -208,8 +208,11 @@ sql_expr_coll(Parse *parse, Expr *p, bool *is_explicit_coll, uint32_t *coll_id)
 		if ((op == TK_AGG_COLUMN || op == TK_COLUMN ||
 		     op == TK_REGISTER || op == TK_TRIGGER) &&
 		    p->space_def != NULL) {
-			/* op==TK_REGISTER && p->pTab!=0 happens when pExpr was originally
-			 * a TK_COLUMN but was previously evaluated and cached in a register
+			/*
+			 * op==TK_REGISTER && p->space_def!=0
+			 * happens when pExpr was originally
+			 * a TK_COLUMN but was previously
+			 * evaluated and cached in a register.
 			 */
 			int j = p->iColumn;
 			if (j >= 0) {
@@ -1573,7 +1576,6 @@ sqlite3SrcListDup(sqlite3 * db, SrcList * p, int flags)
 	for (i = 0; i < p->nSrc; i++) {
 		struct SrcList_item *pNewItem = &pNew->a[i];
 		struct SrcList_item *pOldItem = &p->a[i];
-		Table *pTab;
 		pNewItem->zName = sqlite3DbStrDup(db, pOldItem->zName);
 		pNewItem->zAlias = sqlite3DbStrDup(db, pOldItem->zAlias);
 		pNewItem->fg = pOldItem->fg;
@@ -1589,10 +1591,7 @@ sqlite3SrcListDup(sqlite3 * db, SrcList * p, int flags)
 			pNewItem->u1.pFuncArg =
 			    sql_expr_list_dup(db, pOldItem->u1.pFuncArg, flags);
 		}
-		pTab = pNewItem->pTab = pOldItem->pTab;
-		if (pTab) {
-			pTab->nTabRef++;
-		}
+		pNewItem->space = pOldItem->space;
 		pNewItem->pSelect =
 		    sqlite3SelectDup(db, pOldItem->pSelect, flags);
 		pNewItem->pOn = sqlite3ExprDup(db, pOldItem->pOn, flags);
@@ -2202,7 +2201,6 @@ isCandidateForInOpt(Expr * pX)
 	Select *p;
 	SrcList *pSrc;
 	ExprList *pEList;
-	Table MAYBE_UNUSED *pTab;
 	int i;
 	if (!ExprHasProperty(pX, EP_xIsSelect))
 		return 0;	/* Not a subquery */
@@ -2230,10 +2228,9 @@ isCandidateForInOpt(Expr * pX)
 		return 0;	/* Single term in FROM clause */
 	if (pSrc->a[0].pSelect)
 		return 0;	/* FROM is not a subquery or view */
-	pTab = pSrc->a[0].pTab;
-	assert(pTab != 0);
+	assert(pSrc->a[0].space != NULL);
 	/* FROM clause is not a view */
-	assert(!pTab->def->opts.is_view);
+	assert(!pSrc->a[0].space->def->opts.is_view);
 	pEList = p->pEList;
 	assert(pEList != 0);
 	/* All SELECT results must be columns. */
@@ -2412,19 +2409,18 @@ sqlite3FindInIndex(Parse * pParse,	/* Parsing context */
 	 */
 	if (pParse->nErr == 0 && (p = isCandidateForInOpt(pX)) != 0) {
 		sqlite3 *db = pParse->db;	/* Database connection */
-		Table *pTab;	/* Table <table>. */
 		ExprList *pEList = p->pEList;
 		int nExpr = pEList->nExpr;
 
 		assert(p->pEList != 0);	/* Because of isCandidateForInOpt(p) */
 		assert(p->pEList->a[0].pExpr != 0);	/* Because of isCandidateForInOpt(p) */
 		assert(p->pSrc != 0);	/* Because of isCandidateForInOpt(p) */
-		pTab = p->pSrc->a[0].pTab;
 		assert(v);	/* sqlite3GetVdbe() has always been previously called */
 
 		int affinity_ok = 1;
 		int i;
 
+		struct space *space = p->pSrc->a[0].space;
 		/* Check that the affinity that will be used to perform each
 		 * comparison is the same as the affinity of each column in table
 		 * on the RHS of the IN operator.  If it not, it is not possible to
@@ -2435,7 +2431,7 @@ sqlite3FindInIndex(Parse * pParse,	/* Parsing context */
 			int iCol = pEList->a[i].pExpr->iColumn;
 			/* RHS table */
 			enum affinity_type idxaff =
-				sqlite3TableColumnAffinity(pTab->def, iCol);
+				sqlite3TableColumnAffinity(space->def, iCol);
 			enum affinity_type lhs_aff = sqlite3ExprAffinity(pLhs);
 			/*
 			 * Index search is possible only if types
@@ -2450,7 +2446,7 @@ sqlite3FindInIndex(Parse * pParse,	/* Parsing context */
 			 * Here we need real space since further
 			 * it is used in cursor opening routine.
 			 */
-			struct space *space = space_by_id(pTab->def->id);
+
 			/* Search for an existing index that will work for this IN operator */
 			for (uint32_t k = 0; k < space->index_count &&
 			     eType == 0; ++k) {
@@ -4339,7 +4335,7 @@ sqlite3ExprCodeTarget(Parse * pParse, Expr * pExpr, int target)
 			break;
 		}
 	case TK_RAISE:
-		if (pParse->pTriggerTab == NULL) {
+		if (pParse->triggered_space == NULL) {
 			sqlite3ErrorMsg(pParse, "RAISE() may only be used "
 					"within a trigger-program");
 			return 0;

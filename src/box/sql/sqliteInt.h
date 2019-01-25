@@ -1418,7 +1418,6 @@ typedef struct SQLiteThread SQLiteThread;
 typedef struct SelectDest SelectDest;
 typedef struct SrcList SrcList;
 typedef struct StrAccum StrAccum;
-typedef struct Table Table;
 typedef struct Token Token;
 typedef struct TreeView TreeView;
 typedef struct TriggerPrg TriggerPrg;
@@ -1811,35 +1810,15 @@ struct Savepoint {
 #define SQLITE_NULLEQ       0x80	/* NULL=NULL */
 #define SQLITE_NOTNULL      0x90	/* Assert that operands are never NULL */
 
-/*
- * The schema for each SQL table and view is represented in memory
- * by an instance of the following structure.
- */
-struct Table {
-	u32 nTabRef;		/* Number of pointers to this Table */
-	/**
-	 * Estimated number of entries in table.
-	 * Used only when table represents temporary objects,
-	 * such as nested SELECTs or VIEWs. Otherwise, this stat
-	 * can be fetched from space struct.
-	 */
-	LogEst tuple_log_count;
-	Table *pNextZombie;	/* Next on the Parse.pZombieTab list */
-	/** Space definition with Tarantool metadata. */
-	struct space_def *def;
-	/** Surrogate space containing array of indexes. */
-	struct space *space;
-};
-
 /**
  * Return logarithm of tuple count in space.
  *
- * @param tab Table containing id of space to be examined.
+ * @param space Space to be examined.
  * @retval Logarithm of tuple count in space, or default values,
  *         if there is no corresponding space for given table.
  */
 LogEst
-sql_space_tuple_log_count(struct Table *tab);
+sql_space_tuple_log_count(struct space *space);
 
 /*
  * Each foreign key constraint is an instance of the following structure.
@@ -2070,7 +2049,7 @@ typedef int ynVar;
  * then iTable is the address of a subroutine that computes the subquery.
  *
  * If the Expr is of type OP_Column, and the table it is selecting from
- * is a disk table or the "old.*" pseudo-table, then pTab points to the
+ * is a disk table or the "old.*" pseudo-table, then space_def points to the
  * corresponding table definition.
  *
  * ALLOCATION NOTES:
@@ -2334,7 +2313,8 @@ struct SrcList {
 	struct SrcList_item {
 		char *zName;	/* Name of the table */
 		char *zAlias;	/* The "B" part of a "A AS B" phrase.  zName is the "A" */
-		Table *pTab;	/* An SQL table corresponding to zName */
+		/** A space corresponding to zName */
+		struct space *space;
 		Select *pSelect;	/* A SELECT statement used in place of a table name */
 		int addrFillSub;	/* Address of subroutine to manifest a subquery */
 		int regReturn;	/* Register holding return address of addrFillSub */
@@ -2352,7 +2332,7 @@ struct SrcList {
 		int iCursor;	/* The VDBE cursor number used to access this table */
 		Expr *pOn;	/* The ON clause of a join */
 		IdList *pUsing;	/* The USING clause of a join */
-		Bitmask colUsed;	/* Bit N (1<<N) set if column N of pTab is used */
+		Bitmask colUsed;	/* Bit N (1<<N) set if column N of space is used */
 		union {
 			char *zIndexedBy;	/* Identifier from "INDEXED BY <zIndex>" clause */
 			ExprList *pFuncArg;	/* Arguments to table-valued-function */
@@ -2733,7 +2713,6 @@ struct Parse {
 	int nSelect;		/* Number of SELECT statements seen */
 	int nSelectIndent;	/* How far to indent SELECTTRACE() output */
 	Parse *pToplevel;	/* Parse structure for main program (or NULL) */
-	Table *pTriggerTab;	/* Table triggers are being coded for */
 	u32 nQueryLoop;		/* Est number of iterations of a query (10*log2(N)) */
 	u32 oldmask;		/* Mask of old.* columns referenced */
 	u32 newmask;		/* Mask of new.* columns referenced */
@@ -2776,11 +2755,13 @@ struct Parse {
 	VList *pVList;		/* Mapping between variable names and numbers */
 	Vdbe *pReprepare;	/* VM being reprepared (sqlite3Reprepare()) */
 	const char *zTail;	/* All SQL text past the last semicolon parsed */
-	Table *pNewTable;	/* A table being constructed by CREATE TABLE */
-	Table *pZombieTab;	/* List of Table objects to delete after code gen */
 	TriggerPrg *pTriggerPrg;	/* Linked list of coded triggers */
 	With *pWith;		/* Current WITH clause, or NULL */
 	With *pWithToFree;	/* Free this WITH object at the end of the parse */
+	/** Space triggers are being coded for. */
+	struct space *triggered_space;
+	/** A space being constructed by CREATE TABLE */
+	struct space *new_space;
 	/**
 	 * Number of FK constraints declared within
 	 * CREATE TABLE statement.
@@ -3320,7 +3301,6 @@ u32 sqlite3ExprListFlags(const ExprList *);
 int sqlite3Init(sqlite3 *);
 
 void sqlite3Pragma(Parse *, Token *, Token *, Token *, int);
-void sqlite3DeleteColumnNames(sqlite3 *, Table *);
 
 /**
  * Return true if given column is part of primary key.
@@ -3343,20 +3323,16 @@ sql_space_column_is_in_pk(struct space *space, uint32_t);
  *
  * @param parse Parsing context.
  * @param expr_list  Expr list from which to derive column names.
- * @param table Destination table.
+ * @param space_def Destination space definition.
  * @retval SQLITE_OK on success.
  * @retval error codef on error.
  */
-int sqlite3ColumnsFromExprList(Parse *parse, ExprList *expr_list, Table *table);
+int sqlite3ColumnsFromExprList(Parse *parse, ExprList *expr_list,
+			       struct space_def *space_def);
 
-void sqlite3SelectAddColumnTypeAndCollation(Parse *, Table *, Select *);
-Table *sqlite3ResultSetOfSelect(Parse *, Select *);
-
-/**
- * Return the PRIMARY KEY index of a table.
- */
-struct index *
-sql_table_primary_key(const struct Table *tab);
+void
+sqlite3SelectAddColumnTypeAndCollation(Parse *, struct space_def *, Select *);
+struct space *sqlite3ResultSetOfSelect(Parse *, Select *);
 
 void sqlite3StartTable(Parse *, Token *, int);
 void sqlite3AddColumn(Parse *, Token *, struct type_def *);
@@ -3474,7 +3450,6 @@ sql_store_select(struct Parse *parse_context, struct Select *select);
 
 void
 sql_drop_table(struct Parse *, struct SrcList *, bool, bool);
-void sqlite3DeleteTable(sqlite3 *, Table *);
 void sqlite3Insert(Parse *, SrcList *, Select *, IdList *,
 		   enum on_conflict_action);
 void *sqlite3ArrayAllocate(sqlite3 *, void *, int, int *, int *);
@@ -3498,8 +3473,8 @@ void sqlite3IdListDelete(sqlite3 *, IdList *);
  * index and tbl_name is the name of the table that is to be
  * indexed.  Both will be NULL for a primary key or an index that
  * is created to satisfy a UNIQUE constraint.  If tbl_name and
- * name are NULL, use parse->pNewTable as the table to be indexed.
- * parse->pNewTable is a table that is currently being
+ * name are NULL, use parse->new_space as the table to be indexed.
+ * parse->new_space is a space that is currently being
  * constructed by a CREATE TABLE statement.
  *
  * col_list is a list of columns to be indexed.  col_list will be
@@ -3508,7 +3483,7 @@ void sqlite3IdListDelete(sqlite3 *, IdList *);
  *
  * @param parse All information about this parse.
  * @param token Index name. May be NULL.
- * @param tbl_name Table to index. Use pParse->pNewTable ifNULL.
+ * @param tbl_name Table to index. Use pParse->new_space if NULL.
  * @param col_list A list of columns to be indexed.
  * @param start The CREATE token that begins this statement.
  * @param sort_order Sort order of primary key when pList==NULL.
@@ -3538,26 +3513,26 @@ Select *sqlite3SelectNew(Parse *, ExprList *, SrcList *, Expr *, ExprList *,
 			 Expr *, ExprList *, u32, Expr *, Expr *);
 
 /**
- * While a SrcList can in general represent multiple tables and
+ * While a SrcList can in general represent multiple spaces and
  * subqueries (as in the FROM clause of a SELECT statement) in
  * this case it contains the name of a single table, as one might
  * find in an INSERT, DELETE, or UPDATE statement. Look up that
- * space in the cache and create Table wrapper around it.
+ * space in the cache.
  * Set an error message and return NULL if the table name is not
  * found or if space doesn't have format.
  *
  * The following fields are initialized appropriate in src_list:
  *
- *    src_list->a[0].pTab       Pointer to the Table object.
+ *    src_list->a[0].space      Pointer to the space object.
  *    src_list->a[0].pIndex     Pointer to the INDEXED BY index,
  *                              if there is one.
  *
  * @param parse Parsing context.
- * @param tbl_name Table element.
- * @retval Table object if found, NULL otherwise.
+ * @param space_name Space element.
+ * @retval Space object if found, NULL otherwise.
  */
-struct Table *
-sql_lookup_table(struct Parse *parse, struct SrcList_item *tbl_name);
+struct space *
+sql_lookup_space(struct Parse *parse, struct SrcList_item *space_name);
 
 /**
  * Generate code for a DELETE FROM statement.
@@ -3622,8 +3597,8 @@ sqlite3ExprCodeGetColumn(Parse *, struct space_def *, int, int, int, u8);
 
 /**
  * Generate code that will extract the iColumn-th column from
- * table pTab and store the column value in a register, copy the
- * result.
+ * table defined by space_def and store the column value in
+ * a register, copy the result.
  * @param pParse Parsing and code generating context.
  * @param space_def Space definition.
  * @param iColumn Index of the table column.
@@ -3749,7 +3724,7 @@ int sqlite3ExprNeedsNoAffinityChange(const Expr *, char);
  *   of cursor should be preserved instead.
  *
  * @param parse Parsing context.
- * @param table Table containing the row to be deleted.
+ * @param space Space containing the row to be deleted.
  * @param trigger_list List of triggers to (potentially) fire.
  * @param cursor Cursor from which column data is extracted/
  * @param reg_pk First memory cell containing the PRIMARY KEY.
@@ -3763,7 +3738,7 @@ int sqlite3ExprNeedsNoAffinityChange(const Expr *, char);
  *        to the index entry to be deleted.
  */
 void
-sql_generate_row_delete(struct Parse *parse, struct Table *table,
+sql_generate_row_delete(struct Parse *parse, struct space *space,
 			struct sql_trigger *trigger_list, int cursor,
 			int reg_pk, short npk, bool need_update_count,
 			enum on_conflict_action onconf, u8 mode,
@@ -3854,7 +3829,7 @@ sql_generate_index_key(struct Parse *parse, struct index *index, int cursor,
  *  CHECK       REPLACE    Illegal. Results in an exception.
  *
  * @param parse_context Current parsing context.
- * @param tab The table being inserted or updated.
+ * @param space The space being inserted or updated.
  * @param new_tuple_reg First register in a range holding values
  *                      to insert.
  * @param on_conflict On conflict error action of INSERT or
@@ -3865,7 +3840,7 @@ sql_generate_index_key(struct Parse *parse, struct index *index, int cursor,
  */
 void
 vdbe_emit_constraint_checks(struct Parse *parse_context,
-			    struct Table *tab, int new_tuple_reg,
+			    struct space *space, int new_tuple_reg,
 			    enum on_conflict_action on_conflict,
 			    int ignore_label, int *upd_cols);
 
@@ -3985,20 +3960,21 @@ vdbe_code_drop_trigger(struct Parse *parser, const char *trigger_name,
 		       bool account_changes);
 
 /**
- * Return a list of all triggers on table pTab if there exists at
- * least one trigger that must be fired when an operation of type
- * 'op' is performed on the table, and, if that operation is an
- * UPDATE, if at least one of the columns in changes_list is being
- * modified.
+ * Return a list of all triggers on space (represented with
+ * space_def) if there exists at least one trigger that must be
+ * fired when an operation of type 'op' is performed on the
+ * table, and, if that operation is an UPDATE, if at least one
+ * of the columns in changes_list is being modified.
  *
- * @param table The table the contains the triggers.
+ * @param space_def The definition of the space that contains
+ *        the triggers.
  * @param op operation one of TK_DELETE, TK_INSERT, TK_UPDATE.
  * @param changes_list Columns that change in an UPDATE statement.
  * @param[out] pMask Mask of TRIGGER_BEFORE|TRIGGER_AFTER
  */
 struct sql_trigger *
-sql_triggers_exist(struct Table *table, int op, struct ExprList *changes_list,
-		   int *mask_ptr);
+sql_triggers_exist(struct space_def *space_def, int op,
+		   struct ExprList *changes_list, int *mask_ptr);
 
 /**
  * This is called to code the required FOR EACH ROW triggers for
@@ -4020,13 +3996,13 @@ sql_triggers_exist(struct Table *table, int op, struct ExprList *changes_list,
  *   Register       Contains
  *   ------------------------------------------------------
  *   reg+0          OLD.PK
- *   reg+1          OLD.* value of left-most column of pTab
+ *   reg+1          OLD.* value of left-most column of space
  *   ...            ...
- *   reg+N          OLD.* value of right-most column of pTab
+ *   reg+N          OLD.* value of right-most column of space
  *   reg+N+1        NEW.PK
- *   reg+N+2        OLD.* value of left-most column of pTab
+ *   reg+N+2        OLD.* value of left-most column of space
  *   ...            ...
- *   reg+N+N+1      NEW.* value of right-most column of pTab
+ *   reg+N+N+1      NEW.* value of right-most column of space
  *
  * For ON DELETE triggers, the registers containing the NEW.*
  * values will never be accessed by the trigger program, so they
@@ -4048,7 +4024,7 @@ sql_triggers_exist(struct Table *table, int op, struct ExprList *changes_list,
  * @param op operation, one of TK_UPDATE, TK_INSERT, TK_DELETE.
  * @param changes_list Changes list for any UPDATE OF triggers.
  * @param tr_tm One of TRIGGER_BEFORE, TRIGGER_AFTER.
- * @param table The table to code triggers from.
+ * @param space The space to code triggers from.
  * @param reg The first in an array of registers.
  * @param orconf ON CONFLICT policy.
  * @param ignore_jump Instruction to jump to for RAISE(IGNORE).
@@ -4056,7 +4032,7 @@ sql_triggers_exist(struct Table *table, int op, struct ExprList *changes_list,
 void
 vdbe_code_row_trigger(struct Parse *parser, struct sql_trigger *trigger,
 		      int op, struct ExprList *changes_list, int tr_tm,
-		      struct Table *table, int reg, int orconf, int ignore_jump);
+		      struct space *space, int reg, int orconf, int ignore_jump);
 
 /**
  * Generate code for the trigger program associated with trigger
@@ -4066,14 +4042,14 @@ vdbe_code_row_trigger(struct Parse *parser, struct sql_trigger *trigger,
  *
  * @param parser Parse context.
  * @param trigger Trigger to code.
- * @param table The table to code triggers from.
+ * @param space The space to code triggers from.
  * @param reg Reg array containing OLD.* and NEW.* values.
  * @param orconf ON CONFLICT policy.
  * @param ignore_jump Instruction to jump to for RAISE(IGNORE).
  */
 void
 vdbe_code_row_trigger_direct(struct Parse *parser, struct sql_trigger *trigger,
-			     struct Table *table, int reg, int orconf,
+			     struct space *space, int reg, int orconf,
 			     int ignore_jump);
 
 void sqlite3DeleteTriggerStep(sqlite3 *, TriggerStep *);
@@ -4119,7 +4095,7 @@ TriggerStep *sqlite3TriggerDeleteStep(sqlite3 *, Token *, Expr *);
  * @param changes_list Changes list for any UPDATE OF triggers.
  * @param new  1 for new.* ref mask, 0 for old.* ref mask.
  * @param tr_tm Mask of TRIGGER_BEFORE|TRIGGER_AFTER.
- * @param table The table to code triggers from.
+ * @param space The space to code triggers from.
  * @param orconf Default ON CONFLICT policy for trigger steps.
  *
  * @retval mask value.
@@ -4127,7 +4103,7 @@ TriggerStep *sqlite3TriggerDeleteStep(sqlite3 *, Token *, Expr *);
 u32
 sql_trigger_colmask(Parse *parser, struct sql_trigger *trigger,
 		    ExprList *changes_list, int new, int tr_tm,
-		    Table *table, int orconf);
+		    struct space *space, int orconf);
 #define sqlite3ParseToplevel(p) ((p)->pToplevel ? (p)->pToplevel : (p))
 #define sqlite3IsToplevel(p) ((p)->pToplevel==0)
 
@@ -4440,8 +4416,8 @@ int sqlite3ResolveOrderGroupBy(Parse *, Select *, ExprList *, const char *);
 /**
  * Generate code for default value.
  * The most recently coded instruction was an OP_Column to retrieve the
- * i-th column of table pTab. This routine sets the P4 parameter of the
- * OP_Column to the default value, if any.
+ * i-th column of table defined by space_def. This routine sets
+ * the P4 parameter of the OP_Column to the default value, if any.
  *
  * The default value of a column is specified by a DEFAULT clause in the
  * column definition. This was either supplied by the user when the table
@@ -4738,25 +4714,25 @@ void sqlite3WithPush(Parse *, With *, u8);
  * inserted using the INSERT convention.
  *
  * @param parser SQL parser.
- * @param tab Table from which the row is deleted.
+ * @param space Space from which the row is deleted.
  * @param reg_old Register with deleted row.
  * @param reg_new Register with inserted row.
  * @param changed_cols Array of updated columns. Can be NULL.
  */
 void
-fkey_emit_check(struct Parse *parser, struct Table *tab, int reg_old,
+fkey_emit_check(struct Parse *parser, struct space *space, int reg_old,
 		int reg_new, const int *changed_cols);
 
 /**
  * Emit VDBE code to do CASCADE, SET NULL or SET DEFAULT actions
  * when deleting or updating a row.
  * @param parser SQL parser.
- * @param tab Table being updated or deleted from.
+ * @param space Space being updated or deleted from.
  * @param reg_old Register of the old record.
  * param changes Array of numbers of changed columns.
  */
 void
-fkey_emit_actions(struct Parse *parser, struct Table *tab, int reg_old,
+fkey_emit_actions(struct Parse *parser, struct space *space, int reg_old,
 		  const int *changes);
 
 /**
@@ -4769,12 +4745,12 @@ fkey_emit_actions(struct Parse *parser, struct Table *tab, int reg_old,
  * changes[] array is set to -1. If the column is modified,
  * the value is 0 or greater.
  *
- * @param space_id Id of space to be modified.
+ * @param space Space to be modified.
  * @param changes Array of modified fields for UPDATE.
  * @retval True, if any foreign key processing will be required.
  */
 bool
-fkey_is_required(uint32_t space_id, const int *changes);
+fkey_is_required(struct space *space, const int *changes);
 
 /*
  * Available fault injectors.  Should be numbered beginning with 0.

@@ -416,6 +416,27 @@ sql_token(const char *z, int *type, bool *is_reserved)
 	return i;
 }
 
+/**
+ * This function is called to release parsing artifacts
+ * during table creation. The only objects allocated using
+ * malloc are index defs and check constraints.
+ * Note that this functions can't be called on ordinary
+ * space object. It's purpose is to clean-up parser->new_space.
+ *
+ * @param db Database handler.
+ * @param space Space to be deleted.
+ */
+static void
+parser_space_delete(struct sqlite3 *db, struct space *space)
+{
+	if (space == NULL || db == NULL || db->pnBytesFreed == 0)
+		return;
+	assert(space->def->opts.is_temporary);
+	for (uint32_t i = 0; i < space->index_count; ++i)
+		index_def_delete(space->index[i]->def);
+	sql_expr_list_delete(db, space->def->opts.checks);
+}
+
 /*
  * Run the parser on the given SQL string.  The parser structure is
  * passed in.  An SQLITE_ status code is returned.  If an error occurs
@@ -449,7 +470,7 @@ sqlite3RunParser(Parse * pParse, const char *zSql, char **pzErrMsg)
 		sqlite3OomFault(db);
 		return SQLITE_NOMEM_BKPT;
 	}
-	assert(pParse->pNewTable == 0);
+	assert(pParse->new_space == NULL);
 	assert(pParse->parsed_ast.trigger == NULL);
 	assert(pParse->nVar == 0);
 	assert(pParse->pVList == 0);
@@ -529,16 +550,10 @@ sqlite3RunParser(Parse * pParse, const char *zSql, char **pzErrMsg)
 		sqlite3VdbeDelete(pParse->pVdbe);
 		pParse->pVdbe = 0;
 	}
-	sqlite3DeleteTable(db, pParse->pNewTable);
-
+	parser_space_delete(db, pParse->new_space);
 	if (pParse->pWithToFree)
 		sqlite3WithDelete(db, pParse->pWithToFree);
 	sqlite3DbFree(db, pParse->pVList);
-	while (pParse->pZombieTab) {
-		Table *p = pParse->pZombieTab;
-		pParse->pZombieTab = p->pNextZombie;
-		sqlite3DeleteTable(db, p);
-	}
 	assert(nErr == 0 || pParse->rc != SQLITE_OK);
 	return nErr;
 }
