@@ -2829,14 +2829,17 @@ case OP_Affinity: {
 }
 
 /* Opcode: MakeRecord P1 P2 P3 P4 P5
- * Synopsis: r[P3]=mkrec(r[P1@P2])
+ * Synopsis: r[P3]=mkrec(r[P1@P2]) or r[P3]=mkrec(r[P1@r[P2].i])
  *
- * Convert P2 registers beginning with P1 into the [record format]
+ * If flag OPFLAG_P2_IS_REG is set then reg_count is the number
+ * that contains in r[P2], else reg_count = P2.
+ *
+ * Convert reg_count registers beginning with P1 into the [record format]
  * use as a data record in a database table or as a key
  * in an index.  The OP_Column opcode can decode the record later.
  *
- * P4 may be a string that is P2 characters long.  The nth character of the
- * string indicates the column affinity that should be used for the nth
+ * P4 may be a string that is reg_count characters long.  The nth character of
+ * the string indicates the column affinity that should be used for the nth
  * field of the index key.
  *
  * The mapping from character to affinity is given by the AFFINITY_
@@ -2844,8 +2847,9 @@ case OP_Affinity: {
  *
  * If P4 is NULL then all index fields have the affinity BLOB.
  *
- * If P5 is not NULL then record under construction is intended to be inserted
- * into ephemeral space. Thus, sort of memory optimization can be performed.
+ * If flag OPFLAG_IS_EPHEMERAL is set then record under
+ * construction is intended to be inserted into ephemeral space.
+ * Thus, sort of memory optimization can be performed.
  */
 case OP_MakeRecord: {
 	Mem *pRec;             /* The new record */
@@ -2854,6 +2858,9 @@ case OP_MakeRecord: {
 	int nField;            /* Number of fields in the record */
 	char *zAffinity;       /* The affinity string for the record */
 	u8 bIsEphemeral;
+	int reg_count = pOp->p2;
+	if ((pOp->p5 & OPFLAG_P2_IS_REG) != 0)
+		reg_count = aMem[reg_count].u.i;
 
 	/* Assuming the record contains N fields, the record format looks
 	 * like this:
@@ -2872,14 +2879,15 @@ case OP_MakeRecord: {
 	 */
 	nField = pOp->p1;
 	zAffinity = pOp->p4.z;
-	bIsEphemeral = pOp->p5;
-	assert(nField>0 && pOp->p2>0 && pOp->p2+nField<=(p->nMem+1 - p->nCursor)+1);
+	bIsEphemeral = pOp->p5 & OPFLAG_IS_EPHEMERAL;
+	assert((nField > 0) && (reg_count > 0) &&
+	       (reg_count + nField <= (p->nMem + 1 - p->nCursor) + 1));
 	pData0 = &aMem[nField];
-	nField = pOp->p2;
+	nField = reg_count;
 	pLast = &pData0[nField-1];
 
 	/* Identify the output register */
-	assert(pOp->p3<pOp->p1 || pOp->p3>=pOp->p1+pOp->p2);
+	assert(pOp->p3 < pOp->p1 || pOp->p3 >= pOp->p1 + reg_count);
 	pOut = &aMem[pOp->p3];
 	memAboutToChange(p, pOut);
 
