@@ -756,6 +756,155 @@ callStatGet(Vdbe * v, int regStat4, int iParam, int regOut)
 	sqlite3VdbeChangeP5(v, 2);
 }
 
+static void
+vdbe_emit_analize_index(struct Parse *parse, struct index *idx,
+			struct space *space, int chng_reg, int idx_cursor,
+			int prev_reg, int tmp_reg, int key_reg, int stat4_reg)
+{
+	Vdbe *v = sqlite3GetVdbe(parse);
+	assert(v != NULL);
+
+	int part_count = idx->def->key_def->part_count;
+	sqlite3VdbeAddOp2(v, OP_Integer, 0, chng_reg);
+	int distinct_addr = sqlite3VdbeMakeLabel(v);
+	/* Array of jump instruction addresses. */
+	int *jump_addrs = region_alloc(&parse->region,
+				       sizeof(int) * part_count);
+	if (jump_addrs == NULL) {
+		diag_set(OutOfMemory, sizeof(int) * part_count,
+			 "region", "jump_addrs");
+		parse->rc = SQL_TARANTOOL_ERROR;
+		parse->nErr++;
+		return;
+	}
+	sqlite3VdbeAddOp0(v, OP_Goto);
+	int next_row_addr = sqlite3VdbeCurrentAddr(v);
+	if (part_count == 1 && idx->def->opts.is_unique) {
+		/*
+		 * For a single-column UNIQUE index, once
+		 * we have found a non-NULL row, we know
+		 * that all the rest will be distinct, so
+		 * skip subsequent distinctness tests.
+		 */
+		sqlite3VdbeAddOp2(v, OP_NotNull, prev_reg,
+				  distinct_addr);
+	}
+	struct key_part *part = idx->def->key_def->parts;
+	for (int i = 0; i < part_count; ++i, ++part) {
+		struct coll *coll = part->coll;
+		sqlite3VdbeAddOp2(v, OP_Integer, i, chng_reg);
+		sqlite3VdbeAddOp3(v, OP_Column, idx_cursor,
+				  part->fieldno, tmp_reg);
+		jump_addrs[i] = sqlite3VdbeAddOp4(v, OP_Ne, tmp_reg, 0,
+						 prev_reg + i,
+						 (char *)coll,
+						 P4_COLLSEQ);
+		sqlite3VdbeChangeP5(v, SQLITE_NULLEQ);
+	}
+	sqlite3VdbeAddOp2(v, OP_Integer, part_count, chng_reg);
+	sqlite3VdbeGoto(v, distinct_addr);
+	/*
+	 *  chng_addr_0:
+	 *   prev_reg(0) = idx(0)
+	 *  chng_addr_1:
+	 *   prev_reg(1) = idx(1)
+	 *  ...
+	 */
+	sqlite3VdbeJumpHere(v, next_row_addr - 1);
+	part = idx->def->key_def->parts;
+	for (int i = 0; i < part_count; ++i, ++part) {
+		sqlite3VdbeJumpHere(v, jump_addrs[i]);
+		sqlite3VdbeAddOp3(v, OP_Column, idx_cursor,
+				  part->fieldno, prev_reg + i);
+	}
+	sqlite3VdbeResolveLabel(v, distinct_addr);
+	/*
+	 *  chng_addr_N:
+	 *   key_reg = idx(key)
+	 *   stat_push(P, chng_reg, key_reg)
+	 *   Next csr
+	 *   if !eof(csr) goto next_row;
+	 */
+	assert(key_reg == (stat4_reg + 2));
+	struct index *pk = space_index(space, 0);
+	int pk_part_count = pk->def->key_def->part_count;
+	/* Allocate memory for array. */
+	parse->nMem = MAX(parse->nMem,
+			  prev_reg + part_count + pk_part_count);
+	int stat_key_reg = prev_reg + part_count;
+	for (int i = 0; i < pk_part_count; i++) {
+		uint32_t k = pk->def->key_def->parts[i].fieldno;
+		assert(k < space->def->field_count);
+		sqlite3VdbeAddOp3(v, OP_Column, idx_cursor, k,
+				  stat_key_reg + i);
+		VdbeComment((v, "%s", space->def->fields[k].name));
+	}
+	sqlite3VdbeAddOp3(v, OP_MakeRecord, stat_key_reg,
+			  pk_part_count, key_reg);
+	assert(chng_reg == (stat4_reg + 1));
+	sqlite3VdbeAddOp4(v, OP_Function0, 1, stat4_reg, tmp_reg,
+			  (char *)&statPushFuncdef, P4_FUNCDEF);
+	sqlite3VdbeChangeP5(v, 3);
+	sqlite3VdbeAddOp2(v, OP_Next, idx_cursor, next_row_addr);
+}
+
+static void
+vdbe_emit_push_analyze(struct Parse *parse, struct index *idx,
+		       struct space *space, struct space *stat1,
+		       struct space *stat4, int stat1_reg, int stat4_reg,
+		       int tmp_reg, int tab_cursor, int tab_name_reg)
+{
+	Vdbe *v = sqlite3GetVdbe(parse);
+	assert(v != NULL);
+
+	int part_count = idx->def->key_def->part_count;
+
+	/* Add the entry to the stat1 table. */
+	callStatGet(v, stat4_reg, STAT_GET_STAT1, stat1_reg);
+	assert("BBB"[0] == AFFINITY_TEXT);
+	sqlite3VdbeAddOp4(v, OP_MakeRecord, tab_name_reg, 3, tmp_reg,
+			  "BBB", 0);
+	sqlite3VdbeAddOp4(v, OP_IdxInsert, tmp_reg, 0, 0,
+			  (char *)stat1, P4_SPACEPTR);
+	/* Add the entries to the stat4 table. */
+	int eq_reg = stat1_reg;
+	int lt_reg = stat1_reg + 1;
+	int dlt_reg = stat1_reg + 2;
+	int sample_reg = stat1_reg + 3;
+	int col_reg = stat1_reg + 4;
+	int sample_key_reg = col_reg + part_count;
+	parse->nMem = MAX(parse->nMem, col_reg + part_count);
+	int next_addr = sqlite3VdbeCurrentAddr(v);
+	callStatGet(v, stat4_reg, STAT_GET_KEY, sample_key_reg);
+	int is_null_addr = sqlite3VdbeAddOp1(v, OP_IsNull,
+					     sample_key_reg);
+	callStatGet(v, stat4_reg, STAT_GET_NEQ, eq_reg);
+	callStatGet(v, stat4_reg, STAT_GET_NLT, lt_reg);
+	callStatGet(v, stat4_reg, STAT_GET_NDLT, dlt_reg);
+	sqlite3VdbeAddOp4Int(v, OP_NotFound, tab_cursor, next_addr,
+			     sample_key_reg, 0);
+	/*
+	 * We know that the sample_key_reg row exists
+	 * because it was read by the previous loop.
+	 * Thus the not-found jump of seekOp will never
+	 * be taken.
+	 */
+	for (int i = 0; i < part_count; i++) {
+		uint32_t tabl_col = idx->def->key_def->parts[i].fieldno;
+		sqlite3ExprCodeGetColumnOfTable(v, space->def,
+						tab_cursor, tabl_col,
+						col_reg + i);
+	}
+	sqlite3VdbeAddOp3(v, OP_MakeRecord, col_reg, part_count,
+			  sample_reg);
+	sqlite3VdbeAddOp3(v, OP_MakeRecord, tab_name_reg, 6, tmp_reg);
+	sqlite3VdbeAddOp4(v, OP_IdxReplace, tmp_reg, 0, 0,
+			  (char *)stat4, P4_SPACEPTR);
+	/* P1==1 for end-of-loop. */
+	sqlite3VdbeAddOp2(v, OP_Goto, 1, next_addr);
+	sqlite3VdbeJumpHere(v, is_null_addr);
+}
+
 /**
  * Generate code to do an analysis of all indices associated with
  * a single table.
@@ -772,6 +921,9 @@ vdbe_emit_analyze_space(struct Parse *parse, struct space *space)
 	struct space *stat4 = space_by_id(BOX_SQL_STAT4_ID);
 	assert(stat4 != NULL);
 
+	/* Do not gather statistics on system tables. */
+	if (space_is_system(space))
+		return;
 	/* Register to hold Stat4Accum object. */
 	int stat4_reg = ++parse->nMem;
 	/* Index of changed index field. */
@@ -788,9 +940,6 @@ vdbe_emit_analyze_space(struct Parse *parse, struct space *space)
 	int stat1_reg = ++parse->nMem;
 	/* MUST BE LAST (see below). */
 	int prev_reg = ++parse->nMem;
-	/* Do not gather statistics on system tables. */
-	if (space_is_system(space))
-		return;
 	/*
 	 * Open a read-only cursor on the table. Also allocate
 	 * a cursor number to use for scanning indexes.
@@ -891,6 +1040,7 @@ vdbe_emit_analyze_space(struct Parse *parse, struct space *space)
 		sqlite3VdbeAddOp4(v, OP_Function0, 0, stat4_reg + 1, stat4_reg,
 				  (char *)&statInitFuncdef, P4_FUNCDEF);
 		sqlite3VdbeChangeP5(v, 3);
+
 		/*
 		 * Implementation of the following:
 		 *
@@ -900,141 +1050,14 @@ vdbe_emit_analyze_space(struct Parse *parse, struct space *space)
 		 *   goto next_push_0;
 		 */
 		int rewind_addr = sqlite3VdbeAddOp1(v, OP_Rewind, idx_cursor);
-		sqlite3VdbeAddOp2(v, OP_Integer, 0, chng_reg);
-		int distinct_addr = sqlite3VdbeMakeLabel(v);
-		/* Array of jump instruction addresses. */
-		int *jump_addrs = region_alloc(&parse->region,
-					       sizeof(int) * part_count);
-		if (jump_addrs == NULL) {
-			diag_set(OutOfMemory, sizeof(int) * part_count,
-				 "region", "jump_addrs");
-			parse->rc = SQL_TARANTOOL_ERROR;
-			parse->nErr++;
-			return;
-		}
-		/*
-		 *  next_row:
-		 *   chng_reg = 0
-		 *   if( idx(0) != prev_reg(0) ) goto chng_addr_0
-		 *   chng_reg = 1
-		 *   if( idx(1) != prev_reg(1) ) goto chng_addr_1
-		 *   ...
-		 *   chng_reg = N
-		 *   goto distinct_addr
-		 */
-		sqlite3VdbeAddOp0(v, OP_Goto);
-		int next_row_addr = sqlite3VdbeCurrentAddr(v);
-		if (part_count == 1 && idx->def->opts.is_unique) {
-			/*
-			 * For a single-column UNIQUE index, once
-			 * we have found a non-NULL row, we know
-			 * that all the rest will be distinct, so
-			 * skip subsequent distinctness tests.
-			 */
-			sqlite3VdbeAddOp2(v, OP_NotNull, prev_reg,
-					  distinct_addr);
-		}
-		struct key_part *part = idx->def->key_def->parts;
-		for (int i = 0; i < part_count; ++i, ++part) {
-			struct coll *coll = part->coll;
-			sqlite3VdbeAddOp2(v, OP_Integer, i, chng_reg);
-			sqlite3VdbeAddOp3(v, OP_Column, idx_cursor,
-					  part->fieldno, tmp_reg);
-			jump_addrs[i] = sqlite3VdbeAddOp4(v, OP_Ne, tmp_reg, 0,
-							 prev_reg + i,
-							 (char *)coll,
-							 P4_COLLSEQ);
-			sqlite3VdbeChangeP5(v, SQLITE_NULLEQ);
-		}
-		sqlite3VdbeAddOp2(v, OP_Integer, part_count, chng_reg);
-		sqlite3VdbeGoto(v, distinct_addr);
-		/*
-		 *  chng_addr_0:
-		 *   prev_reg(0) = idx(0)
-		 *  chng_addr_1:
-		 *   prev_reg(1) = idx(1)
-		 *  ...
-		 */
-		sqlite3VdbeJumpHere(v, next_row_addr - 1);
-		part = idx->def->key_def->parts;
-		for (int i = 0; i < part_count; ++i, ++part) {
-			sqlite3VdbeJumpHere(v, jump_addrs[i]);
-			sqlite3VdbeAddOp3(v, OP_Column, idx_cursor,
-					  part->fieldno, prev_reg + i);
-		}
-		sqlite3VdbeResolveLabel(v, distinct_addr);
-		/*
-		 *  chng_addr_N:
-		 *   key_reg = idx(key)
-		 *   stat_push(P, chng_reg, key_reg)
-		 *   Next csr
-		 *   if !eof(csr) goto next_row;
-		 */
-		assert(key_reg == (stat4_reg + 2));
-		struct index *pk = space_index(space, 0);
-		int pk_part_count = pk->def->key_def->part_count;
-		/* Allocate memory for array. */
-		parse->nMem = MAX(parse->nMem,
-				  prev_reg + part_count + pk_part_count);
-		int stat_key_reg = prev_reg + part_count;
-		for (int i = 0; i < pk_part_count; i++) {
-			uint32_t k = pk->def->key_def->parts[i].fieldno;
-			assert(k < space->def->field_count);
-			sqlite3VdbeAddOp3(v, OP_Column, idx_cursor, k,
-					  stat_key_reg + i);
-			VdbeComment((v, "%s", space->def->fields[k].name));
-		}
-		sqlite3VdbeAddOp3(v, OP_MakeRecord, stat_key_reg,
-				  pk_part_count, key_reg);
-		assert(chng_reg == (stat4_reg + 1));
-		sqlite3VdbeAddOp4(v, OP_Function0, 1, stat4_reg, tmp_reg,
-				  (char *)&statPushFuncdef, P4_FUNCDEF);
-		sqlite3VdbeChangeP5(v, 3);
-		sqlite3VdbeAddOp2(v, OP_Next, idx_cursor, next_row_addr);
-		/* Add the entry to the stat1 table. */
-		callStatGet(v, stat4_reg, STAT_GET_STAT1, stat1_reg);
-		assert("BBB"[0] == AFFINITY_TEXT);
-		sqlite3VdbeAddOp4(v, OP_MakeRecord, tab_name_reg, 3, tmp_reg,
-				  "BBB", 0);
-		sqlite3VdbeAddOp4(v, OP_IdxInsert, tmp_reg, 0, 0,
-				  (char *)stat1, P4_SPACEPTR);
-		/* Add the entries to the stat4 table. */
-		int eq_reg = stat1_reg;
-		int lt_reg = stat1_reg + 1;
-		int dlt_reg = stat1_reg + 2;
-		int sample_reg = stat1_reg + 3;
-		int col_reg = stat1_reg + 4;
-		int sample_key_reg = col_reg + part_count;
-		parse->nMem = MAX(parse->nMem, col_reg + part_count);
-		int next_addr = sqlite3VdbeCurrentAddr(v);
-		callStatGet(v, stat4_reg, STAT_GET_KEY, sample_key_reg);
-		int is_null_addr = sqlite3VdbeAddOp1(v, OP_IsNull,
-						     sample_key_reg);
-		callStatGet(v, stat4_reg, STAT_GET_NEQ, eq_reg);
-		callStatGet(v, stat4_reg, STAT_GET_NLT, lt_reg);
-		callStatGet(v, stat4_reg, STAT_GET_NDLT, dlt_reg);
-		sqlite3VdbeAddOp4Int(v, OP_NotFound, tab_cursor, next_addr,
-				     sample_key_reg, 0);
-		/*
-		 * We know that the sample_key_reg row exists
-		 * because it was read by the previous loop.
-		 * Thus the not-found jump of seekOp will never
-		 * be taken.
-		 */
-		for (int i = 0; i < part_count; i++) {
-			uint32_t tabl_col = idx->def->key_def->parts[i].fieldno;
-			sqlite3ExprCodeGetColumnOfTable(v, space->def,
-							tab_cursor, tabl_col,
-							col_reg + i);
-		}
-		sqlite3VdbeAddOp3(v, OP_MakeRecord, col_reg, part_count,
-				  sample_reg);
-		sqlite3VdbeAddOp3(v, OP_MakeRecord, tab_name_reg, 6, tmp_reg);
-		sqlite3VdbeAddOp4(v, OP_IdxReplace, tmp_reg, 0, 0,
-				  (char *)stat4, P4_SPACEPTR);
-		/* P1==1 for end-of-loop. */
-		sqlite3VdbeAddOp2(v, OP_Goto, 1, next_addr);
-		sqlite3VdbeJumpHere(v, is_null_addr);
+
+		vdbe_emit_analize_index(parse, idx, space, chng_reg, idx_cursor,
+					prev_reg, tmp_reg, key_reg, stat4_reg);
+
+		vdbe_emit_push_analyze(parse, idx, space, stat1, stat4,
+				       stat1_reg, stat4_reg, tmp_reg,
+				       tab_cursor, tab_name_reg);
+
 		/* End of analysis. */
 		sqlite3VdbeJumpHere(v, rewind_addr);
 	}
