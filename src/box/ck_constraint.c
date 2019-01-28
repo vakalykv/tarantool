@@ -58,8 +58,22 @@ ck_constraint_resolve_column_reference(struct Expr *expr,
 	memset(&dummy_table, 0, sizeof(dummy_table));
 	dummy_table.def = (struct space_def *)space_def;
 
-	sql_resolve_self_reference(&parser, &dummy_table, NC_IsCheck,
-				   expr, NULL);
+	/* Fake SrcList for parser->pNewTable */
+	struct SrcList sSrc;
+	/* Name context for parser->pNewTable */
+	struct NameContext sNC;
+
+	memset(&sNC, 0, sizeof(sNC));
+	memset(&sSrc, 0, sizeof(sSrc));
+	sSrc.nSrc = 1;
+	sSrc.a[0].zName = (char *)space_def->name;
+	sSrc.a[0].pTab = &dummy_table;
+	sSrc.a[0].iCursor = -1;
+	sNC.pParse = &parser;
+	sNC.pSrcList = &sSrc;
+	sNC.ncFlags = NC_IsCheck;
+	sqlite3ResolveExprNames(&sNC, expr);
+
 	int rc = 0;
 	if (parser.rc != SQLITE_OK) {
 		/* Tarantool error may be already set with diag. */
@@ -67,6 +81,12 @@ ck_constraint_resolve_column_reference(struct Expr *expr,
 			diag_set(ClientError, ER_CREATE_CK_CONSTRAINT,
 				 ck_constraint_name, parser.zErrMsg);
 		}
+		rc = -1;
+	}
+	if (sNC.ncFlags & NC_HasTypeofFunction) {
+		diag_set(ClientError, ER_CREATE_CK_CONSTRAINT,
+			 ck_constraint_name,
+			 "TYPEOF is forbidden in check constraint");
 		rc = -1;
 	}
 	sql_parser_destroy(&parser);

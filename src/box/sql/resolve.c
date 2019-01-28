@@ -727,6 +727,9 @@ resolveExprStep(Walker * pWalker, Expr * pExpr)
 						nId, zId);
 				pNC->nErr++;
 			}
+			if (pDef != NULL &&
+			   (pDef->funcFlags & SQLITE_FUNC_TYPEOF) != 0)
+				pNC->ncFlags |= NC_HasTypeofFunction;
 			if (is_agg)
 				pNC->ncFlags &= ~NC_AllowAgg;
 			sqlite3WalkExprList(pWalker, pList);
