@@ -1,0 +1,24 @@
+SELECT length('\x80'); was 1 made 0 psql 4 mysql 3 mssql 4 db 4
+SELECT length('\x7f\x80\x81'); 3 1 12 9 12 12
+SELECT length('\x61\xc0'); 2 1 8 6 8 8
+SELECT length('\x61\xc0\x80\x80\x80\x80\x80\x80\x80\x80\x80\x80'); 2 1 48 36 48 48 (51 with €)
+SELECT length('\xc0\x80\x80\x80\x80\x80\x80\x80\x80\x80\x80'); 1 0 44
+SELECT length('\x80\x80\x80\x80\x80\x80\x80\x80\x80\x80'); 10 0 40
+SELECT length('\x80\x80\x80\x80\x80\xf0\x80\x80\x80\x80'); 6 0 40
+SELECT length('\x80\x80\x80\x80\x80\xf0\x80\x80\x80\xff'); 7 0 40 - 40
+
+
+so psql and mssql just count bytes and continue counting
+
+template1=# SELECT length('\x80\x80\x80\x80\x80\xf0\x80\x80\x80\x80€');
+ length
+--------
+     41
+(1 row)
+
+template1=# SELECT length('\x80\x80\x80\x80\x80\xf0\€x80\x80\x80\x80€');
+ length
+--------
+     42
+(1 row)
+
