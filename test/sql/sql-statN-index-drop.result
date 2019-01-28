@@ -7,6 +7,12 @@ engine = test_run:get_cfg('engine')
 box.sql.execute('pragma sql_default_engine=\''..engine..'\'')
 ---
 ...
+function replace_id_by_name(r) r[1] = box.space[r[1]].name r[2] = box.space[r[1]].index[r[2]].name end
+---
+...
+function show_names(t) for k,v in pairs(t) do if k > 0 then replace_id_by_name(v) end end return t end
+---
+...
 -- Initializing some things.
 box.sql.execute("CREATE TABLE t1(id INT PRIMARY KEY, a INT);")
 ---
@@ -31,36 +37,23 @@ box.sql.execute("ANALYZE;")
 ---
 ...
 -- Checking the data.
-box.sql.execute("SELECT * FROM \"_sql_stat4\";")
+show_names(box.sql.execute("SELECT * FROM \"_sql_stat\";"))
 ---
-- - ['T1', 'I1', '1', '0', '0', !!binary kQI=]
-  - ['T1', 'T1', '1', '0', '0', !!binary kQE=]
-  - ['T2', 'I1', '1', '0', '0', !!binary kQI=]
-  - ['T2', 'T2', '1', '0', '0', !!binary kQE=]
-...
-box.sql.execute("SELECT * FROM \"_sql_stat1\";")
----
-- - ['T1', 'I1', '1 1']
-  - ['T1', 'T1', '1 1']
-  - ['T2', 'I1', '1 1']
-  - ['T2', 'T2', '1 1']
+- - ['T1', 'pk_unnamed_T1_1', '1 1', ['1'], ['0'], ['0'], [[1]]]
+  - ['T1', 'I1', '1 1', ['1'], ['0'], ['0'], [[2]]]
+  - ['T2', 'pk_unnamed_T2_1', '1 1', ['1'], ['0'], ['0'], [[1]]]
+  - ['T2', 'I1', '1 1', ['1'], ['0'], ['0'], [[2]]]
 ...
 -- Dropping an index.
 box.sql.execute("DROP INDEX i1 ON t1;")
 ---
 ...
 -- Checking the DROP INDEX results.
-box.sql.execute("SELECT * FROM \"_sql_stat4\";")
+show_names(box.sql.execute("SELECT * FROM \"_sql_stat\";"))
 ---
-- - ['T1', 'T1', '1', '0', '0', !!binary kQE=]
-  - ['T2', 'I1', '1', '0', '0', !!binary kQI=]
-  - ['T2', 'T2', '1', '0', '0', !!binary kQE=]
-...
-box.sql.execute("SELECT * FROM \"_sql_stat1\";")
----
-- - ['T1', 'T1', '1 1']
-  - ['T2', 'I1', '1 1']
-  - ['T2', 'T2', '1 1']
+- - ['T1', 'pk_unnamed_T1_1', '1 1', ['1'], ['0'], ['0'], [[1]]]
+  - ['T2', 'pk_unnamed_T2_1', '1 1', ['1'], ['0'], ['0'], [[1]]]
+  - ['T2', 'I1', '1 1', ['1'], ['0'], ['0'], [[2]]]
 ...
 --Cleaning up.
 box.sql.execute("DROP TABLE t1;")
@@ -93,36 +86,23 @@ box.sql.execute("ANALYZE;")
 ---
 ...
 -- Checking the data.
-box.sql.execute("SELECT * FROM \"_sql_stat4\";")
+show_names(box.sql.execute("SELECT * FROM \"_sql_stat\";"))
 ---
-- - ['T1', 'I1', '1', '0', '0', !!binary kQI=]
-  - ['T1', 'T1', '1', '0', '0', !!binary kQE=]
-  - ['T2', 'I1', '1', '0', '0', !!binary kQI=]
-  - ['T2', 'T2', '1', '0', '0', !!binary kQE=]
-...
-box.sql.execute("SELECT * FROM \"_sql_stat1\";")
----
-- - ['T1', 'I1', '1 1']
-  - ['T1', 'T1', '1 1']
-  - ['T2', 'I1', '1 1']
-  - ['T2', 'T2', '1 1']
+- - ['T1', 'pk_unnamed_T1_1', '1 1', ['1'], ['0'], ['0'], [[1]]]
+  - ['T1', 'I1', '1 1', ['1'], ['0'], ['0'], [[2]]]
+  - ['T2', 'pk_unnamed_T2_1', '1 1', ['1'], ['0'], ['0'], [[1]]]
+  - ['T2', 'I1', '1 1', ['1'], ['0'], ['0'], [[2]]]
 ...
 -- Dropping an index.
 box.sql.execute("DROP INDEX i1 ON t2;")
 ---
 ...
 -- Checking the DROP INDEX results.
-box.sql.execute("SELECT * FROM \"_sql_stat4\";")
+show_names(box.sql.execute("SELECT * FROM \"_sql_stat\";"))
 ---
-- - ['T1', 'I1', '1', '0', '0', !!binary kQI=]
-  - ['T1', 'T1', '1', '0', '0', !!binary kQE=]
-  - ['T2', 'T2', '1', '0', '0', !!binary kQE=]
-...
-box.sql.execute("SELECT * FROM \"_sql_stat1\";")
----
-- - ['T1', 'I1', '1 1']
-  - ['T1', 'T1', '1 1']
-  - ['T2', 'T2', '1 1']
+- - ['T1', 'pk_unnamed_T1_1', '1 1', ['1'], ['0'], ['0'], [[1]]]
+  - ['T1', 'I1', '1 1', ['1'], ['0'], ['0'], [[2]]]
+  - ['T2', 'pk_unnamed_T2_1', '1 1', ['1'], ['0'], ['0'], [[1]]]
 ...
 --Cleaning up.
 box.sql.execute("DROP TABLE t1;")

@@ -24,6 +24,9 @@ test:plan(4)
 -- ["set","testdir",[["file","dirname",["argv0"]]]]
 -- ["source",[["testdir"],"\/tester.tcl"]]
 
+function replace_id_by_name(r) r[1] = box.space[r[1]].name r[2] = box.space[r[1]].index[r[2]].name end
+function show_names(t) for k,v in pairs(t) do if k > 0 then replace_id_by_name(v) end end return t end
+
 test:do_test(
     "analyze4-1.0",
     function()
@@ -52,12 +55,18 @@ test:do_test(
 -- Verify that the t1b index shows that it does not narrow down the
 -- search any at all.
 --
-test:do_execsql_test(
+test:do_test(
     "analyze4-1.1",
-    [[ SELECT "idx", "stat" FROM "_sql_stat1" WHERE "tbl"='T1' ORDER BY "idx"; ]],
-    {
+    function()
+        result = box.sql.execute([[
+            SELECT "space_id", "index_id", "stat" FROM "_sql_stat";
+        ]])
+        return show_names(result)
+    end, {
         -- <analyze4-1.1>
-        "T1","128 1", "T1A", "128 1", "T1B", "128 128"
+        {"T1","pk_unnamed_T1_1","128 1"},
+        {"T1","T1A","128 1"},
+        {"T1","T1B","128 128"}
         -- </analyze4-1.1>
     })
 
@@ -68,16 +77,19 @@ test:do_execsql_test(
 test:do_test(
     "analyze4-1.2",
     function()
-        return test:execsql([[
+        test:execsql([[
             UPDATE t1 SET b='x' WHERE a%2;
--- pragma vdbe_debug=1;
             ANALYZE;
--- pragma vdbe_debug=0;
-            SELECT "idx", "stat" FROM "_sql_stat1" WHERE "tbl"='T1' ORDER BY "idx";
         ]])
+        result = box.sql.execute([[
+            SELECT "space_id", "index_id", "stat" FROM "_sql_stat";
+        ]])
+        return show_names(result)
     end, {
         -- <analyze4-1.2>
-        "T1", "128 1", "T1A", "128 1", "T1B", "128 64"
+        {"T1","pk_unnamed_T1_1","128 1"},
+        {"T1","T1A","128 1"},
+        {"T1","T1B","128 64"}
         -- </analyze4-1.2>
     })
 
@@ -85,9 +97,10 @@ test:do_test(
 -- Create a multi-column indices using t1.b and verify that ANALYZE 
 -- processes them correctly.
 --
-test:do_execsql_test(
+test:do_test(
     "analyze4-1.3",
-    [[
+    function()
+        test:execsql([[
             -- Tarantool doesn't suppoort ALTER stmt yet.
             -- UPDATE t1 SET b=NULL;
             --ALTER TABLE t1 ADD COLUMN c;
@@ -111,11 +124,19 @@ test:do_execsql_test(
             CREATE INDEX t1cdb ON t1(c,d,b);
             CREATE INDEX t1cbd ON t1(c,b,d);
             ANALYZE;
-            SELECT "idx", "stat" FROM "_sql_stat1" WHERE "tbl"='T1' ORDER BY "idx";
-    ]]
-    , {
+        ]])
+        result = box.sql.execute([[
+            SELECT "space_id", "index_id", "stat" FROM "_sql_stat";
+        ]])
+        return show_names(result)
+    end, {
         -- <analyze4-1.3>
-        "T1","128 1", "T1A", "128 1", "T1B", "128 128", "T1BCD", "128 128 4 2", "T1CBD", "128 4 4 2", "T1CDB", "128 4 2 2"
+        {"T1","pk_unnamed_T1_1","128 1"},
+        {"T1","T1A","128 1"},
+        {"T1","T1B","128 128"},
+        {"T1","T1BCD","128 128 4 2"},
+        {"T1","T1CDB","128 4 2 2"},
+        {"T1","T1CBD","128 4 4 2"}
         -- </analyze4-1.3>
     })
 

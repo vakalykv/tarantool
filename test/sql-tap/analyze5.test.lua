@@ -113,15 +113,11 @@ test:do_test(
             ANALYZE;
         ]])
 
-        -- DISTINCT idx, sample -- lindex(test_decode(sample),0)
-        -- WHERE idx='t1u' ORDER BY nlt;
-        return test:execsql([[ SELECT DISTINCT msgpack_decode("sample")
-                                 FROM "_sql_stat4"
-                                 WHERE "idx"='T1U'
-                                 ORDER BY "nlt"]])
+        index_id = box.space['T1'].index['T1U'].id
+        return test:execsql('SELECT "sample" FROM "_sql_stat" WHERE "index_id" = ' .. index_id)
     end, {
         -- <analyze5-1.0>
-        "alpha", "bravo", "charlie", "delta"
+        "alpha","alpha","alpha","bravo","bravo","bravo","charlie","delta"
         -- </analyze5-1.0>
     })
 
@@ -140,14 +136,40 @@ test:do_test(
 --         "alpha", "bravo", "charlie", "delta"
 --         -- </analyze5-1.1>
 --     })
-
+msgpack = require('msgpack')
 test:do_test(
     "analyze5-1.2",
     function()
-        return test:execsql([[SELECT "idx", count(*) FROM "_sql_stat4" GROUP BY 1 ORDER BY 1]])
+        result = box.sql.execute([[
+            SELECT "index_id", "sample" FROM "_sql_stat";
+        ]])
+        for k,v in pairs(result) do
+            if k > 0 then
+                v[1] = box.space['T1'].index[k - 1].name
+                local counter = 0
+                local value = nil
+                for k1,v1 in pairs(v[2]) do
+                    if (k1 ~= 0) then
+                        if (k1 == 1 or v1[1] ~= value) then
+                            counter = counter + 1
+                        end
+                        value = v1[1]
+                    end
+                end
+                v[2] = counter
+            end
+        end
+        return result
     end, {
         -- <analyze5-1.2>
-        "T1",24,"T1T",4,"T1U",4,"T1V",1,"T1W",4,"T1X",4,"T1Y",2,"T1Z",4
+        {"pk_unnamed_T1_1",24},
+        {"T1T",4},
+        {"T1U",4},
+        {"T1V",1},
+        {"T1W",4},
+        {"T1X",4},
+        {"T1Y",2},
+        {"T1Z",4}
         -- </analyze5-1.2>
     })
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env tarantool
 test = require("sqltester")
-test:plan(38)
+test:plan(30)
 
 --!./tcltestrunner.lua
 -- 2005 July 22
@@ -17,6 +17,11 @@ test:plan(38)
 -- This file implements tests for the ANALYZE command.
 --
 
+function space_name(space_id) return box.space[space_id].name end
+box.internal.sql_create_function("space_name", "TEXT", space_name)
+
+function index_name(space_id, index_id) return box.space[space_id].index[index_id].name end
+box.internal.sql_create_function("index_name", "TEXT", index_name)
 
 -- Basic sanity checks.
 --
@@ -33,7 +38,7 @@ test:do_catchsql_test(
 test:do_execsql_test(
     "analyze-1.6",
     [[
-        SELECT count(*) FROM "_space" WHERE "name"='_sql_stat1'
+        SELECT count(*) FROM "_space" WHERE "name"='_sql_stat'
     ]], {
         -- <analyze-1.6>
         1
@@ -65,7 +70,7 @@ test:do_execsql_test(
 test:do_execsql_test(
     "analyze-1.7",
     [[
-        SELECT * FROM "_sql_stat1" WHERE "idx" IS NOT NULL
+        SELECT * FROM "_sql_stat" WHERE "index_id" IS NOT NULL
     ]], {
         -- <analyze-1.7>
         -- </analyze-1.7>
@@ -84,7 +89,7 @@ test:do_catchsql_test(
 test:do_execsql_test(
     "analyze-1.9",
     [[
-        SELECT * FROM "_sql_stat1" WHERE "idx" IS NOT NULL
+        SELECT * FROM "_sql_stat" WHERE "index_id" IS NOT NULL
     ]], {
         -- <analyze-1.9>
         -- </analyze-1.9>
@@ -105,7 +110,7 @@ test:do_catchsql_test(
 test:do_execsql_test(
     "analyze-1.11",
     [[
-        SELECT * FROM "_sql_stat1"
+        SELECT * FROM "_sql_stat"
     ]], {
         -- <analyze-1.11>
         -- </analyze-1.11>
@@ -119,7 +124,7 @@ test:do_execsql_test(
     [[
         CREATE INDEX t1i1 ON t1(a);
         ANALYZE t1;
-        SELECT * FROM "_sql_stat1" ORDER BY "idx";
+        SELECT * FROM "_sql_stat";
     ]], {
         -- <analyze-2.1>
         -- </analyze-2.1>
@@ -130,7 +135,7 @@ test:do_execsql_test(
     [[
         CREATE INDEX t1i2 ON t1(b);
         ANALYZE t1;
-        SELECT * FROM "_sql_stat1" ORDER BY "idx";
+        SELECT * FROM "_sql_stat";
     ]], {
         -- <analyze-2.2>
         -- </analyze-2.2>
@@ -141,7 +146,7 @@ test:do_execsql_test(
     [[
         CREATE INDEX t1i3 ON t1(a,b);
         ANALYZE;
-        SELECT * FROM "_sql_stat1" ORDER BY "idx";
+        SELECT * FROM "_sql_stat";
     ]], {
         -- <analyze-2.3>
         -- </analyze-2.3>
@@ -157,10 +162,10 @@ test:do_execsql_test(
         INSERT INTO t1 VALUES(1, 1,2);
         INSERT INTO t1 VALUES(2, 1,3);
         ANALYZE t1;
-        SELECT "idx", "stat" FROM "_sql_stat1" ORDER BY "idx";
+        SELECT index_name("space_id", "index_id"), "stat" FROM "_sql_stat";
     ]], {
         -- <analyze-3.1>
-        "T1", "2 1", "T1I1", "2 2", "T1I2", "2 1", "T1I3", "2 2 1"
+        "pk_unnamed_T1_1", "2 1", "T1I1", "2 2", "T1I2", "2 1", "T1I3", "2 2 1"
         -- </analyze-3.1>
     })
 
@@ -170,10 +175,10 @@ test:do_execsql_test(
         INSERT INTO t1 VALUES(3, 1,4);
         INSERT INTO t1 VALUES(4, 1,5);
         ANALYZE t1;
-        SELECT "idx", "stat" FROM "_sql_stat1" ORDER BY "idx";
+        SELECT index_name("space_id", "index_id"), "stat" FROM "_sql_stat";
     ]], {
         -- <analyze-3.2>
-        "T1", "4 1", "T1I1", "4 4", "T1I2", "4 1", "T1I3", "4 4 1"
+        "pk_unnamed_T1_1", "4 1", "T1I1", "4 4", "T1I2", "4 1", "T1I3", "4 4 1"
         -- </analyze-3.2>
     })
 
@@ -182,10 +187,10 @@ test:do_execsql_test(
     [[
         INSERT INTO t1 (a,b) VALUES(2,5);
         ANALYZE;
-        SELECT "idx", "stat" FROM "_sql_stat1" ORDER BY "idx";
+        SELECT index_name("space_id", "index_id"), "stat" FROM "_sql_stat";
     ]], {
         -- <analyze-3.3>
-        "T1","5 1", "T1I1", "5 3", "T1I2", "5 2", "T1I3", "5 3 1"
+        "pk_unnamed_T1_1","5 1", "T1I1", "5 3", "T1I2", "5 2", "T1I3", "5 3 1"
         -- </analyze-3.3>
     })
 
@@ -198,10 +203,11 @@ test:do_execsql_test(
         CREATE INDEX t2i2 ON t2(b);
         CREATE INDEX t2i3 ON t2(a,b);
         ANALYZE;
-        SELECT "idx", "stat" FROM "_sql_stat1" ORDER BY "idx";
+        SELECT index_name("space_id", "index_id"), "stat" FROM "_sql_stat";
     ]], {
         -- <analyze-3.4>
-        "T1","5 1","T1I1","5 3","T1I2","5 2","T1I3","5 3 1","T2","5 1","T2I1","5 3","T2I2","5 2","T2I3","5 3 1"
+        "pk_unnamed_T1_1","5 1","T1I1","5 3","T1I2","5 2","T1I3","5 3 1",
+        "pk_unnamed_T2_1","5 1","T2I1","5 3","T2I2","5 2","T2I3","5 3 1"
         -- </analyze-3.4>
     })
 
@@ -210,10 +216,11 @@ test:do_execsql_test(
     [[
         DROP INDEX t2i3 ON t2;;
         ANALYZE t1;
-        SELECT "idx", "stat" FROM "_sql_stat1" ORDER BY "idx";
+        SELECT index_name("space_id", "index_id"), "stat" FROM "_sql_stat";
     ]], {
         -- <analyze-3.5>
-        "T1","5 1","T1I1","5 3","T1I2","5 2","T1I3","5 3 1","T2","5 1","T2I1","5 3","T2I2","5 2"
+        "pk_unnamed_T1_1","5 1","T1I1","5 3","T1I2","5 2","T1I3","5 3 1",
+        "pk_unnamed_T2_1","5 1","T2I1","5 3","T2I2","5 2"
         -- </analyze-3.5>
     })
 
@@ -221,10 +228,11 @@ test:do_execsql_test(
     "analyze-3.6",
     [[
         ANALYZE t2;
-        SELECT "idx", "stat" FROM "_sql_stat1" ORDER BY "idx";
+        SELECT index_name("space_id", "index_id"), "stat" FROM "_sql_stat";
     ]], {
         -- <analyze-3.6>
-        "T1","5 1","T1I1","5 3","T1I2","5 2","T1I3","5 3 1","T2","5 1","T2I1","5 3","T2I2","5 2"
+        "pk_unnamed_T1_1","5 1","T1I1","5 3","T1I2","5 2","T1I3","5 3 1",
+        "pk_unnamed_T2_1","5 1","T2I1","5 3","T2I2","5 2"
         -- </analyze-3.6>
     })
 
@@ -233,10 +241,11 @@ test:do_execsql_test(
     [[
         DROP INDEX t2i2 ON t2;
         ANALYZE t2;
-        SELECT "idx", "stat" FROM "_sql_stat1" ORDER BY "idx";
+        SELECT index_name("space_id", "index_id"), "stat" FROM "_sql_stat";
     ]], {
         -- <analyze-3.7>
-        "T1","5 1","T1I1","5 3","T1I2","5 2","T1I3","5 3 1","T2","5 1","T2I1","5 3"
+        "pk_unnamed_T1_1","5 1","T1I1","5 3","T1I2","5 2","T1I3","5 3 1",
+        "pk_unnamed_T2_1","5 1","T2I1","5 3"
         -- </analyze-3.7>
     })
 
@@ -250,7 +259,7 @@ test:do_execsql_test(
         CREATE INDEX t3i3 ON t3(d,b,c,a);
         DROP TABLE t1;
         DROP TABLE t2;
-        SELECT "idx", "stat" FROM "_sql_stat1" ORDER BY "idx";
+        SELECT index_name("space_id", "index_id"), "stat" FROM "_sql_stat";
     ]], {
         -- <analyze-3.8>      
         -- </analyze-3.8>
@@ -260,10 +269,10 @@ test:do_execsql_test(
     "analyze-3.9",
     [[
         ANALYZE;
-        SELECT "idx", "stat" FROM "_sql_stat1" ORDER BY "idx";
+        SELECT index_name("space_id", "index_id"), "stat" FROM "_sql_stat";
     ]], {
         -- <analyze-3.9>
-        "T3","5 1","T3I1","5 3","T3I2","5 3 1 1 1","T3I3","5 5 2 1 1"
+        "pk_unnamed_T3_1","5 1","T3I1","5 3","T3I2","5 3 1 1 1","T3I3","5 5 2 1 1"
         -- </analyze-3.9>
     })
 
@@ -317,10 +326,11 @@ test:do_execsql_test(
         CREATE INDEX t4i2 ON t4(y);
         INSERT INTO t4 SELECT id,a,b,c FROM t3;
         ANALYZE;
-        SELECT "idx", "stat" FROM "_sql_stat1" ORDER BY "idx";
+        SELECT index_name("space_id", "index_id"), "stat" FROM "_sql_stat";
     ]], {
         -- <analyze-4.0>
-        "T3", "5 1", "T3I1", "5 3", "T3I2", "5 3 1 1 1", "T3I3", "5 5 2 1 1", "T4", "5 1", "T4I1", "5 3", "T4I2", "5 2"
+        "pk_unnamed_T3_1", "5 1", "T3I1", "5 3", "T3I2", "5 3 1 1 1", "T3I3", "5 5 2 1 1",
+        "pk_unnamed_T4_1", "5 1", "T4I1", "5 3", "T4I2", "5 2"
         -- </analyze-4.0>
     })
 
@@ -367,7 +377,7 @@ test:do_execsql_test(
         INSERT INTO t3 (a,b,c,d) SELECT a+64, b+64, c+64, d+64 FROM t3;
         INSERT INTO t4 (x,y,z) SELECT a, b, c FROM t3;
         ANALYZE;
-        SELECT DISTINCT "tbl" FROM "_sql_stat1" ORDER BY 1;
+        SELECT DISTINCT space_name("space_id") FROM "_sql_stat";
     ]], {
         -- <analyze-5.0>
         "T3", "T4"
@@ -377,33 +387,11 @@ test:do_execsql_test(
 test:do_execsql_test(
     "analyze-5.0.1",
     [[
-        SELECT DISTINCT "idx" FROM "_sql_stat1" ORDER BY 1;
+        SELECT DISTINCT index_name("space_id", "index_id") FROM "_sql_stat";
     ]], {
         -- <analyze-5.0>
-        "T3", "T3I1", "T3I2", "T3I3", "T4", "T4I1", "T4I2"
+        "pk_unnamed_T3_1", "T3I1", "T3I2", "T3I3", "pk_unnamed_T4_1", "T4I1", "T4I2"
         -- </analyze-5.0>
-    })
-
-stat = "_sql_stat4"
-
-test:do_execsql_test(
-    "analyze-5.1",
-    string.format([[
-            SELECT DISTINCT "idx" FROM "%s" ORDER BY 1;
-        ]], stat, stat), {
-        -- <analyze-5.1>
-        "T3", "T3I1", "T3I2", "T3I3", "T4", "T4I1", "T4I2"
-        -- </analyze-5.1>
-    })
-
-test:do_execsql_test(
-    "analyze-5.1.1",
-    string.format([[
-            SELECT DISTINCT "tbl" FROM "%s" ORDER BY 1;
-        ]], stat, stat), {
-        -- <analyze-5.1>
-        "T3", "T4"
-        -- </analyze-5.1>
     })
 
 test:do_execsql_test(
@@ -411,41 +399,21 @@ test:do_execsql_test(
     [[
         DROP INDEX t3i2 ON t3;
         ANALYZE;
-        SELECT DISTINCT "idx" FROM "_sql_stat1" ORDER BY 1;
+        SELECT DISTINCT index_name("space_id", "index_id") FROM "_sql_stat";
     ]], {
         -- <analyze-5.2>
-        "T3", "T3I1", "T3I3", "T4", "T4I1", "T4I2"
+        "pk_unnamed_T3_1", "T3I1", "T3I3", "pk_unnamed_T4_1", "T4I1", "T4I2"
         -- </analyze-5.2>
     })
 
 test:do_execsql_test(
     "analyze-5.2.1",
     [[
-        SELECT DISTINCT "tbl" FROM "_sql_stat1" ORDER BY 1;
+        SELECT DISTINCT space_name("space_id") FROM "_sql_stat";
     ]], {
         -- <analyze-5.2>
         "T3", "T4"
         -- </analyze-5.2>
-    })
-
-test:do_execsql_test(
-    "analyze-5.3",
-    string.format([[
-            SELECT DISTINCT "idx" FROM "%s" ORDER BY 1;
-        ]], stat, stat), {
-        -- <analyze-5.3>
-        "T3", "T3I1", "T3I3", "T4", "T4I1", "T4I2"
-        -- </analyze-5.3>
-    })
-
-test:do_execsql_test(
-    "analyze-5.3.1",
-    string.format([[
-            SELECT DISTINCT "tbl" FROM "%s" ORDER BY 1;
-        ]], stat, stat), {
-        -- <analyze-5.3>
-        "T3", "T4"
-        -- </analyze-5.3>
     })
 
 test:do_execsql_test(
@@ -453,41 +421,21 @@ test:do_execsql_test(
     [[
         DROP TABLE IF EXISTS t3;
         ANALYZE;
-        SELECT DISTINCT "idx" FROM "_sql_stat1" ORDER BY 1;
+        SELECT DISTINCT index_name("space_id", "index_id") FROM "_sql_stat";
     ]], {
         -- <analyze-5.4>
-        "T4", "T4I1", "T4I2"
+        "pk_unnamed_T4_1", "T4I1", "T4I2"
         -- </analyze-5.4>
     })
 
 test:do_execsql_test(
     "analyze-5.4.1",
     [[
-        SELECT DISTINCT "tbl" FROM "_sql_stat1" ORDER BY 1;
+        SELECT DISTINCT space_name("space_id") FROM "_sql_stat";
     ]], {
         -- <analyze-5.4>
         "T4"
         -- </analyze-5.4>
-    })
-
-test:do_execsql_test(
-    "analyze-5.5",
-    string.format([[
-            SELECT DISTINCT "idx" FROM "%s" ORDER BY 1;
-        ]], stat), {
-        -- <analyze-5.5>
-        "T4", "T4I1", "T4I2"
-        -- </analyze-5.5>
-    })
-
-test:do_execsql_test(
-    "analyze-5.5.1",
-    string.format([[
-            SELECT DISTINCT "tbl" FROM "%s" ORDER BY 1;
-        ]], stat), {
-        -- <analyze-5.5>
-        "T4"
-        -- </analyze-5.5>
     })
 
 test:do_test(
@@ -516,35 +464,40 @@ test:do_test(
     -- </analyze-6.1.1>
 })
 
-test:do_execsql_test(
+test:do_test(
     "analyze-6.1.2",
-    [[
-            SELECT * FROM "_sql_stat1" where "tbl"='T1' and "idx"='I1' LIMIT 1;
-    ]], {
+    function()
+        space_id = box.space['T1'].id
+        index_id = box.space['T1'].index['I1'].id
+        return test:execsql(string.format([[
+            SELECT space_name("space_id"), index_name("space_id", "index_id"), "stat"
+            FROM "_sql_stat" where "space_id"= %s and "index_id"= %s LIMIT 1;'
+        ]], space_id, index_id))
+    end, {
     -- <analyze-6.1.2>
     "T1", "I1", "221 221 221 221 2"
     -- </analyze-6.1.2>
 })
 
-test:do_execsql_test(
-    "analyze-6.1.3",
-    [[
-            SELECT "tbl", "idx", "neq", "nlt", "ndlt" FROM "_sql_stat4" where "tbl"='T1' and "idx"='I1' ORDER BY "nlt" LIMIT 1;
-    ]], {
-    -- <analyze-6.1.3>
-    "T1", "I1", "221 221 221 1", "0 0 0 10", "0 0 0 10"
-    -- </analyze-6.1.3>
-})
+-- test:do_execsql_test(
+--     "analyze-6.1.3",
+--     [[
+--             SELECT "tbl", "idx", "neq", "nlt", "ndlt" FROM "_sql_stat4" where "tbl"='T1' and "idx"='I1' ORDER BY "nlt" LIMIT 1;
+--     ]], {
+--     -- <analyze-6.1.3>
+--     "T1", "I1", "221 221 221 1", "0 0 0 10", "0 0 0 10"
+--     -- </analyze-6.1.3>
+-- })
 
-test:do_execsql_test(
-    "analyze-6.1.4",
-    [[
-            SELECT "tbl", "idx", "neq", "nlt", "ndlt" FROM "_sql_stat4" where "tbl"='T1' and "idx"='I1' ORDER BY "nlt" DESC LIMIT 1;
-    ]], {
-    -- <analyze-6.1.4>
-    "T1", "I1", "221 221 221 1", "0 0 0 99", "0 0 0 99"
-    -- </analyze-6.1.4>
-})
+-- test:do_execsql_test(
+--     "analyze-6.1.4",
+--     [[
+--             SELECT "tbl", "idx", "neq", "nlt", "ndlt" FROM "_sql_stat4" where "tbl"='T1' and "idx"='I1' ORDER BY "nlt" DESC LIMIT 1;
+--     ]], {
+--     -- <analyze-6.1.4>
+--     "T1", "I1", "221 221 221 1", "0 0 0 99", "0 0 0 99"
+--     -- </analyze-6.1.4>
+-- })
 
 -- # This test corrupts the database file so it must be the last test
 -- # in the series.
