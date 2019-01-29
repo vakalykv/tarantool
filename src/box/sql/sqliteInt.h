@@ -595,6 +595,19 @@ sqlite3_column_value(sqlite3_stmt *,
 int
 sqlite3_finalize(sqlite3_stmt * pStmt);
 
+/*
+ * Terminate the current execution of an SQL statement and reset
+ * it back to its starting state so that it can be reused. A
+ * success code from the prior execution is returned.
+ *
+ * This routine sets the error code and string returned by
+ * sqlite3_errcode(), sqlite3_errmsg() and sqlite3_errmsg16().
+ * @param stmt VDBE program, may be NULL.
+ * @retval SQLITE_OK on success, sql_ret_code error code.
+ */
+int
+sql_stmt_reset(struct sqlite3_stmt *stmt);
+
 int
 sqlite3_exec(sqlite3 *,	/* An open database */
 	     const char *sql,	/* SQL to be evaluated */
