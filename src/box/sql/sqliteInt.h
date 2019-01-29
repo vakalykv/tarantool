@@ -3896,6 +3896,20 @@ vdbe_emit_constraint_checks(struct Parse *parse_context,
 			    int ignore_label, int *upd_cols);
 
 /**
+ * Gnerate code to make check constraints tests on tuple insertion
+ * on INSERT, REPLACE or UPDATE operations.
+ * @param parser Current parsing context.
+ * @param expr Check constraint AST.
+ * @param name Check constraint name to raise error.
+ * @param new_tuple_reg The first ck_constraint::stmt VDBE
+ *                      register of the range
+ *                      space_def::field_count representing a
+ *                      new tuple to be inserted.
+ */
+void
+vdbe_emit_ck_constraint(struct Parse *parser, struct Expr *expr,
+			const char *name, int new_tuple_reg);
+/**
  * This routine generates code to finish the INSERT or UPDATE
  * operation that was started by a prior call to
  * vdbe_emit_constraint_checks. It encodes raw data which is held
