@@ -749,6 +749,8 @@ sql_get_description(struct sqlite3_stmt *stmt, struct obuf *out,
 		 * preallocated during prepare phase and the
 		 * column_name simply returns them.
 		 */
+		if (type == NULL)
+			type = "UNKNOWN";
 		assert(name != NULL);
 		assert(type != NULL);
 		size += mp_sizeof_str(strlen(name));
@@ -869,6 +871,8 @@ lua_sql_get_description(struct sqlite3_stmt *stmt, struct lua_State *L,
 		 * preallocated during prepare phase and the
 		 * column_name simply returns them.
 		 */
+		if (type == NULL)
+			type = "UNKNOWN";
 		assert(name != NULL);
 		assert(type != NULL);
 		lua_pushstring(L, name);
@@ -936,6 +940,7 @@ static inline int
 sql_execute(sqlite3 *db, struct sqlite3_stmt *stmt, struct port *port,
 	    struct region *region)
 {
+	(void)db;
 	int rc, column_count = sqlite3_column_count(stmt);
 	if (column_count > 0) {
 		/* Either ROW or DONE or ERROR. */
@@ -950,10 +955,8 @@ sql_execute(sqlite3 *db, struct sqlite3_stmt *stmt, struct port *port,
 		rc = sqlite3_step(stmt);
 		assert(rc != SQLITE_ROW && rc != SQLITE_OK);
 	}
-	if (rc != SQLITE_DONE) {
-		diag_set(ClientError, ER_SQL_EXECUTE, sqlite3_errmsg(db));
+	if (rc != SQLITE_DONE)
 		return -1;
-	}
 	return 0;
 }
 
@@ -963,16 +966,18 @@ sql_prepare_and_execute(const char *sql, int len, const struct sql_bind *bind,
 			struct region *region)
 {
 	struct sqlite3_stmt *stmt;
+	struct error *last_error = diag_get()->last;
 	sqlite3 *db = sql_get();
-	if (sqlite3_prepare_v2(db, sql, len, &stmt, NULL) != SQLITE_OK) {
-		diag_set(ClientError, ER_SQL_EXECUTE, sqlite3_errmsg(db));
-		return -1;
-	}
+	if (sqlite3_prepare_v2(db, sql, len, &stmt, NULL) != SQLITE_OK)
+		goto error;
 	assert(stmt != NULL);
 	port_sql_create(port, stmt);
 	if (sql_bind(stmt, bind, bind_count) == 0 &&
 	    sql_execute(db, stmt, port, region) == 0)
 		return 0;
 	port_destroy(port);
+error:
+	if (diag_get()->last == last_error)
+		diag_set(ClientError, ER_SQL_EXECUTE, sqlite3_errmsg(db));
 	return -1;
 }

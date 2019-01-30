@@ -2456,3 +2456,6 @@ box.feedback.save = function(file_name)
 end
 
 box.NULL = msgpack.NULL
+
+box.sql = {}
+box.sql.execute = box.execute
