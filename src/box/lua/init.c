@@ -40,6 +40,7 @@
 #include "box/box.h"
 #include "box/txn.h"
 #include "box/vclock.h"
+#include "box/execute.h"
 
 #include "box/lua/error.h"
 #include "box/lua/tuple.h"
@@ -58,7 +59,6 @@
 #include "box/lua/xlog.h"
 #include "box/lua/console.h"
 #include "box/lua/tuple.h"
-#include "box/lua/sql.h"
 
 extern char session_lua[],
 	tuple_lua[],
@@ -266,12 +266,42 @@ lbox_backup_stop(struct lua_State *L)
 	return 0;
 }
 
+static int
+lbox_execute(struct lua_State *L)
+{
+	struct sql_bind *bind = NULL;
+	int bind_count = 0;
+	size_t length;
+	struct port port;
+	int top = lua_gettop(L);
+
+	if (! (top == 1 || top == 2) || ! lua_isstring(L, 1))
+		return luaL_error(L, "Usage: box.execute(sqlstring[, params])");
+	const char *sql = lua_tolstring(L, 1, &length);
+
+	if (top == 2) {
+		if (! lua_istable(L, 2))
+			return luaL_error(L, "Second argument must be a table");
+		bind_count = lua_sql_bind_list_decode(L, &bind, 2);
+		if (bind_count < 0)
+			return luaT_error(L);
+	}
+
+	if (sql_prepare_and_execute(sql, length, bind, bind_count, &port,
+				    &fiber()->gc) != 0)
+		return luaT_error(L);
+	port_dump_lua(&port, L);
+	port_destroy(&port);
+	return 1;
+}
+
 static const struct luaL_Reg boxlib[] = {
 	{"commit", lbox_commit},
 	{"rollback", lbox_rollback},
 	{"on_commit", lbox_on_commit},
 	{"on_rollback", lbox_on_rollback},
 	{"snapshot", lbox_snapshot},
+	{"execute", lbox_execute},
 	{NULL, NULL}
 };
 
@@ -307,7 +337,6 @@ box_lua_init(struct lua_State *L)
 	box_lua_ctl_init(L);
 	box_lua_session_init(L);
 	box_lua_xlog_init(L);
-	box_lua_sqlite_init(L);
 	luaopen_net_box(L);
 	lua_pop(L, 1);
 	tarantool_lua_console_init(L);
