@@ -359,7 +359,7 @@ test:do_catchsql_test(
         INSERT INTO t5 VALUES(2, 1, 3);
     ]], {
         -- <alter-7.2>
-        1, "FOREIGN KEY constraint failed"
+        1, "Failed to execute SQL statement: FOREIGN KEY constraint failed"
         -- </alter-7.2>
     })
 
@@ -369,7 +369,7 @@ test:do_catchsql_test(
         INSERT INTO t5 VALUES(2, 2, 2);
     ]], {
         -- <alter-7.3>
-        1, "FOREIGN KEY constraint failed"
+        1, "Failed to execute SQL statement: FOREIGN KEY constraint failed"
         -- </alter-7.3>
     })
 
@@ -403,7 +403,7 @@ test:do_catchsql_test(
         SELECT * FROM t1;
     ]], {
         -- <alter-7.6>
-        1, "no such table: T1"
+        1, "Failed to execute SQL statement: no such table: T1"
         -- </alter-7.6>
     })
 
@@ -435,7 +435,7 @@ test:do_catchsql_test(
         INSERT INTO t5 VALUES(4, 5, 3);
     ]], {
         -- <alter-7.9>
-        1, "FOREIGN KEY constraint failed"
+        1, "Failed to execute SQL statement: FOREIGN KEY constraint failed"
         -- </alter-7.9>
     })
 
@@ -490,7 +490,7 @@ test:do_catchsql_test(
         INSERT INTO t5 VALUES(6, 5, 10);
     ]], {
         -- <alter-7.14>
-        1, "FOREIGN KEY constraint failed"
+        1, "Failed to execute SQL statement: FOREIGN KEY constraint failed"
         -- </alter-7.14>
     })
 

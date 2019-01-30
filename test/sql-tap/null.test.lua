@@ -295,7 +295,7 @@ test:do_catchsql_test(
         select b from t1 union select c from t1 order by t1.a;
     ]], {
         -- <null-6.5>
-        1, "1st ORDER BY term does not match any column in the result set"
+        1, "Failed to execute SQL statement: 1st ORDER BY term does not match any column in the result set"
         -- </null-6.5>
     })
 
@@ -305,7 +305,7 @@ test:do_catchsql_test(
         select b from t1 union select c from t1 order by t1.a;
     ]], {
         -- <null-6.6>
-        1, "1st ORDER BY term does not match any column in the result set"
+        1, "Failed to execute SQL statement: 1st ORDER BY term does not match any column in the result set"
         -- </null-6.6>
     })
 
@@ -517,7 +517,7 @@ test:do_catchsql_test(
     ]],
     {
     -- <index-1.3>
-    1, "near \"1\": syntax error"
+    1, "Failed to execute SQL statement: near \"1\": syntax error"
     -- <index-1.3>
     })
 
@@ -528,7 +528,7 @@ test:do_catchsql_test(
     ]],
     {
     -- <index-1.3>
-    1, "near \"1\": syntax error"
+    1, "Failed to execute SQL statement: near \"1\": syntax error"
     -- <index-1.3>
     })
 
@@ -539,7 +539,7 @@ test:do_catchsql_test(
     ]],
     {
     -- <index-1.3>
-    1, "near \"1\": syntax error"
+    1, "Failed to execute SQL statement: near \"1\": syntax error"
     -- <index-1.3>
     })
 
@@ -550,7 +550,7 @@ test:do_catchsql_test(
     ]],
     {
     -- <index-1.3>
-    1, "near \"1\": syntax error"
+    1, "Failed to execute SQL statement: near \"1\": syntax error"
     -- <index-1.3>
     })
 

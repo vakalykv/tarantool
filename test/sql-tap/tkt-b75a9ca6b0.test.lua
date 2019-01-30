@@ -39,25 +39,35 @@ test:do_execsql_test(
         CREATE INDEX i1 ON t1(x, y);
     ]])
 
+local function flatten(arr)
+    result = {}
+    for _, v in ipairs(arr) do
+        for _, w in ipairs(v) do
+            table.insert(result, w)
+        end
+    end
+    return result
+end
+
 local idxscan = {0, 0, 0, "SCAN TABLE T1 USING COVERING INDEX I1"}
 local tblscan = {0, 0, 0, "SCAN TABLE T1"}
 local grpsort = {0, 0, 0, "USE TEMP B-TREE FOR GROUP BY"}
 local sort = {0, 0, 0, "USE TEMP B-TREE FOR ORDER BY"}
 local eqps = {
-    {"SELECT x,y FROM t1 GROUP BY x, y ORDER BY x,y", {1, 3,  2, 2,  3, 1}, {idxscan}},
-    {"SELECT x,y FROM t1 GROUP BY x, y ORDER BY x", {1, 3, 2, 2, 3, 1}, {idxscan, sort}},
-    {"SELECT x,y FROM t1 GROUP BY y, x ORDER BY y, x", {3, 1, 2, 2, 1, 3}, {idxscan, sort}},
-    {"SELECT x,y FROM t1 GROUP BY x ORDER BY x", {1, 3, 2, 2, 3, 1}, {idxscan}},
+    {"SELECT x,y FROM t1 GROUP BY x, y ORDER BY x,y", {1, 3,  2, 2,  3, 1}, idxscan},
+    {"SELECT x,y FROM t1 GROUP BY x, y ORDER BY x", {1, 3, 2, 2, 3, 1}, flatten{idxscan, sort}},
+    {"SELECT x,y FROM t1 GROUP BY y, x ORDER BY y, x", {3, 1, 2, 2, 1, 3}, flatten{idxscan, sort}},
+    {"SELECT x,y FROM t1 GROUP BY x ORDER BY x", {1, 3, 2, 2, 3, 1}, flatten{idxscan}},
     -- idxscan->tblscan after reorderind indexes list
     -- but it does not matter
-    {"SELECT x,y FROM t1 GROUP BY y ORDER BY y", {3, 1, 2, 2, 1, 3}, {tblscan, grpsort}},
+    {"SELECT x,y FROM t1 GROUP BY y ORDER BY y", {3, 1, 2, 2, 1, 3}, flatten{tblscan, grpsort}},
     -- idxscan->tblscan after reorderind indexes list
     -- but it does not matter (because it does full scan)
-    {"SELECT x,y FROM t1 GROUP BY y ORDER BY x", {1, 3, 2, 2, 3, 1}, {tblscan, grpsort, sort}},
-    {"SELECT x,y FROM t1 GROUP BY x, y ORDER BY x, y DESC", {1, 3, 2, 2, 3, 1}, {idxscan, sort}},
-    {"SELECT x,y FROM t1 GROUP BY x, y ORDER BY x DESC, y DESC", {3, 1, 2, 2, 1, 3}, {idxscan, sort}},
-    {"SELECT x,y FROM t1 GROUP BY x, y ORDER BY x ASC, y ASC", {1, 3, 2, 2, 3, 1}, {idxscan}},
-    {"SELECT x,y FROM t1 GROUP BY x, y ORDER BY x COLLATE \"unicode_ci\", y", {1, 3, 2, 2, 3, 1}, {idxscan, sort}},
+    {"SELECT x,y FROM t1 GROUP BY y ORDER BY x", {1, 3, 2, 2, 3, 1}, flatten{tblscan, grpsort, sort}},
+    {"SELECT x,y FROM t1 GROUP BY x, y ORDER BY x, y DESC", {1, 3, 2, 2, 3, 1}, flatten{idxscan, sort}},
+    {"SELECT x,y FROM t1 GROUP BY x, y ORDER BY x DESC, y DESC", {3, 1, 2, 2, 1, 3}, flatten{idxscan, sort}},
+    {"SELECT x,y FROM t1 GROUP BY x, y ORDER BY x ASC, y ASC", {1, 3, 2, 2, 3, 1}, idxscan},
+    {"SELECT x,y FROM t1 GROUP BY x, y ORDER BY x COLLATE \"unicode_ci\", y", {1, 3, 2, 2, 3, 1}, flatten{idxscan, sort}},
 }
 for tn, val in ipairs(eqps) do
     local q = val[1]

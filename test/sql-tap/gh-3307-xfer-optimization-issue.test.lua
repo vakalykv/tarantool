@@ -85,7 +85,7 @@ test:do_catchsql_xfer_test(
         INSERT INTO t2 SELECT * FROM t1;
     ]], {
         -- <xfer-optimization-1.5>
-        1, "table T2 has 2 columns but 3 values were supplied"
+        1, "Failed to execute SQL statement: table T2 has 2 columns but 3 values were supplied"
         -- <xfer-optimization-1.5>
     }, {
         exp_xfer_count = 0

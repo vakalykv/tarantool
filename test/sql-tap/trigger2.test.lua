@@ -368,18 +368,18 @@ test:do_test(
         local r = {}
         table.insert(r, test:execsql([[
         INSERT INTO tbl VALUES(0, 1, 0, 0);     -- 1 (ifcapable subquery)
-        SELECT a FROM log;
-        UPDATE log SET a = 0;]])[1])
+        SELECT a FROM log;]])[1])
+        test:execsql("UPDATE log SET a = 0;")
 
         table.insert(r, test:execsql([[
         INSERT INTO tbl VALUES(0, 2, 0, 0);     -- 0
-        SELECT a FROM log;
-        UPDATE log SET a = 0;]])[1])
+        SELECT a FROM log;]])[1])
+        test:execsql("UPDATE log SET a = 0;")
 
         table.insert(r, test:execsql([[
         INSERT INTO tbl VALUES(200, 3, 0, 0);     -- 1
-        SELECT a FROM log;
-        UPDATE log SET a = 0;]])[1])
+        SELECT a FROM log;]])[1])
+        test:execsql("UPDATE log SET a = 0;")
 
         return r
     end

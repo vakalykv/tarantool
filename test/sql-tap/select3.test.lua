@@ -157,7 +157,7 @@ test:do_catchsql_test("select3-2.10", [[
   SELECT log, count(*) FROM t1 GROUP BY 0 ORDER BY log;
 ]], {
   -- <select3-2.10>
-  1, "1st GROUP BY term out of range - should be between 1 and 2"
+  1, "Failed to execute SQL statement: 1st GROUP BY term out of range - should be between 1 and 2"
   -- </select3-2.10>
 })
 
@@ -165,7 +165,7 @@ test:do_catchsql_test("select3-2.11", [[
   SELECT log, count(*) FROM t1 GROUP BY 3 ORDER BY log;
 ]], {
   -- <select3-2.11>
-  1, "1st GROUP BY term out of range - should be between 1 and 2"
+  1, "Failed to execute SQL statement: 1st GROUP BY term out of range - should be between 1 and 2"
   -- </select3-2.11>
 })
 
@@ -182,7 +182,7 @@ test:do_catchsql_test("select3-2.13", [[
   SELECT log, count(*) FROM t1 GROUP BY ORDER BY log;
 ]], {
   -- <select3-2.13>
-  1, [[keyword "ORDER" is reserved]]
+  1, [[Failed to execute SQL statement: keyword "ORDER" is reserved]]
   -- </select3-2.13>
 })
 
@@ -190,7 +190,7 @@ test:do_catchsql_test("select3-2.14", [[
   SELECT log, count(*) FROM t1 GROUP BY;
 ]], {
   -- <select3-2.14>
-  1, [[near ";": syntax error]]
+  1, [[Failed to execute SQL statement: near ";": syntax error]]
   -- </select3-2.14>
 })
 

@@ -9,9 +9,11 @@ engine = test_run:get_cfg('engine')
 ...
 box.sql.execute('pragma sql_default_engine=\''..engine..'\'')
 ---
+- rowcount: 0
 ...
 box.sql.execute('create table test (id int primary key, a float, b text)')
 ---
+- rowcount: 1
 ...
 space = box.space.TEST
 ---
@@ -30,7 +32,15 @@ space:replace{7, 8.5, '9'}
 ...
 box.sql.execute('select * from test')
 ---
-- - [1, 2, '3']
+- metadata:
+  - name: ID
+    type: INTEGER
+  - name: A
+    type: NUMERIC
+  - name: B
+    type: TEXT
+  rows:
+  - [1, 2, '3']
   - [4, 5, '6']
   - [7, 8.5, '9']
 ...
@@ -570,6 +580,7 @@ res.metadata
 ...
 box.sql.execute('drop table test')
 ---
+- rowcount: 1
 ...
 cn:close()
 ---
@@ -600,8 +611,7 @@ future1:wait_result()
 future2:wait_result()
 ---
 - null
-- 'Failed to execute SQL statement: Duplicate key exists in unique index ''pk_unnamed_TEST_1''
-  in space ''TEST'''
+- Duplicate key exists in unique index 'pk_unnamed_TEST_1' in space 'TEST'
 ...
 future3:wait_result()
 ---
@@ -629,11 +639,13 @@ cn:close()
 ...
 box.sql.execute('drop table test')
 ---
+- rowcount: 1
 ...
 -- gh-2618 Return generated columns after INSERT in IPROTO.
 -- Return all ids generated in current INSERT statement.
 box.sql.execute('create table test (id integer primary key autoincrement, a integer)')
 ---
+- rowcount: 1
 ...
 cn = remote.connect(box.cfg.listen)
 ---
@@ -714,6 +726,7 @@ cn:execute('insert into test values (null, 1)')
 ...
 box.sql.execute('create table test3 (id int primary key autoincrement)')
 ---
+- rowcount: 1
 ...
 box.schema.sequence.alter('TEST3', {min=-10000, step=-10})
 ---
@@ -729,6 +742,7 @@ cn:execute('insert into TEST3 values (null), (null), (null), (null)')
 ...
 box.sql.execute('drop table test')
 ---
+- rowcount: 1
 ...
 s:drop()
 ---
@@ -738,6 +752,7 @@ sq:drop()
 ...
 box.sql.execute('drop table test3')
 ---
+- rowcount: 1
 ...
 --
 -- Ensure that FK inside CREATE TABLE does not affect rowcount.
@@ -808,6 +823,7 @@ cn = remote.connect(box.cfg.listen)
 ...
 box.sql.execute('CREATE TABLE t1(id INTEGER PRIMARY KEY AUTOINCREMENT)')
 ---
+- rowcount: 1
 ...
 for i = 0, 1000 do cn:execute("INSERT INTO t1 VALUES (null)") end
 ---
@@ -817,6 +833,7 @@ _ = cn:execute("INSERT INTO t1 SELECT NULL from t1")
 ...
 box.sql.execute('DROP TABLE t1')
 ---
+- rowcount: 1
 ...
 cn:close()
 ---

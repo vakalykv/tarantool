@@ -160,7 +160,7 @@ test:do_catchsql_test(
         ORDER BY log;
     ]], {
         -- <select4-1.3>
-        1, "ORDER BY clause should come after UNION ALL not before"
+        1, "Failed to execute SQL statement: ORDER BY clause should come after UNION ALL not before"
         -- </select4-1.3>
     })
 
@@ -171,7 +171,7 @@ test:do_catchsql_test(
                 SELECT 0 UNION SELECT 0 ORDER BY 1);
     ]], {
         -- <select4-1.4>
-        1, "ORDER BY clause should come after UNION not before"
+        1, "Failed to execute SQL statement: ORDER BY clause should come after UNION not before"
         -- </select4-1.4>
     })
 
@@ -214,7 +214,7 @@ test:do_catchsql_test(
         ORDER BY log;
     ]], {
         -- <select4-2.3>
-        1, "ORDER BY clause should come after UNION not before"
+        1, "Failed to execute SQL statement: ORDER BY clause should come after UNION not before"
         -- </select4-2.3>
     })
 
@@ -224,7 +224,7 @@ test:do_catchsql_test(
         SELECT 0 ORDER BY (SELECT 0) UNION SELECT 0;
     ]], {
         -- <select4-2.4>
-        1, "ORDER BY clause should come after UNION not before"
+        1, "Failed to execute SQL statement: ORDER BY clause should come after UNION not before"
         -- </select4-2.4>
     })
 
@@ -299,7 +299,7 @@ test:do_catchsql_test(
         ORDER BY log;
     ]], {
         -- <select4-3.3>
-        1, "ORDER BY clause should come after EXCEPT not before"
+        1, "Failed to execute SQL statement: ORDER BY clause should come after EXCEPT not before"
         -- </select4-3.3>
     })
 
@@ -379,7 +379,7 @@ test:do_catchsql_test(
         ORDER BY log;
     ]], {
         -- <select4-4.3>
-        1, "ORDER BY clause should come after INTERSECT not before"
+        1, "Failed to execute SQL statement: ORDER BY clause should come after INTERSECT not before"
         -- </select4-4.3>
     })
 
@@ -396,7 +396,7 @@ test:do_catchsql_test(
         );
     ]], {
         -- <select4-4.4>
-        1, "ORDER BY clause should come after INTERSECT not before"
+        1, "Failed to execute SQL statement: ORDER BY clause should come after INTERSECT not before"
         -- </select4-4.4>
     })
 
@@ -411,7 +411,7 @@ test:do_catchsql_test(
         ORDER BY log;
     ]], {
         -- <select4-5.1>
-        1, "no such table: T2"
+        1, "Failed to execute SQL statement: no such table: T2"
         -- </select4-5.1>
     })
 
@@ -450,7 +450,7 @@ test:do_catchsql_test(
         ORDER BY "xyzzy";
     ]], {
         -- <select4-5.2c>
-        1, "1st ORDER BY term does not match any column in the result set"
+        1, "Failed to execute SQL statement: 1st ORDER BY term does not match any column in the result set"
         -- </select4-5.2c>
     })
 
@@ -463,7 +463,7 @@ test:do_catchsql_test(
         ORDER BY "xyzzy";
     ]], {
         -- <select4-5.2d>
-        1, "1st ORDER BY term does not match any column in the result set"
+        1, "Failed to execute SQL statement: 1st ORDER BY term does not match any column in the result set"
         -- </select4-5.2d>
     })
 
@@ -515,7 +515,7 @@ test:do_catchsql_test(
         ORDER BY 2;
     ]], {
         -- <select4-5.2h>
-        1, "1st ORDER BY term out of range - should be between 1 and 1"
+        1, "Failed to execute SQL statement: 1st ORDER BY term out of range - should be between 1 and 1"
         -- </select4-5.2h>
     })
 
@@ -567,7 +567,7 @@ test:do_catchsql_test(
         ORDER BY log;
     ]], {
         -- <select4-5.3>
-        1, "SELECTs to the left and right of UNION ALL do not have the same number of result columns"
+        1, "Failed to execute SQL statement: SELECTs to the left and right of UNION ALL do not have the same number of result columns"
         -- </select4-5.3>
     })
 
@@ -577,7 +577,7 @@ test:do_catchsql_test(
         SELECT 1 UNION SELECT 2, 3 UNION SELECT 4, 5 ORDER BY 1;
     ]], {
         -- <select4-5.3-3807-1>
-        1, "SELECTs to the left and right of UNION do not have the same number of result columns"
+        1, "Failed to execute SQL statement: SELECTs to the left and right of UNION do not have the same number of result columns"
         -- </select4-5.3-3807-1>
     })
 
@@ -1057,7 +1057,7 @@ test:do_catchsql_test(
         SELECT x FROM t2
     ]], {
         -- <select4-11.1>
-        1, "SELECTs to the left and right of UNION do not have the same number of result columns"
+        1, "Failed to execute SQL statement: SELECTs to the left and right of UNION do not have the same number of result columns"
         -- </select4-11.1>
     })
 
@@ -1069,7 +1069,7 @@ test:do_catchsql_test(
         SELECT x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x FROM t2
     ]], {
         -- <select4-11.2>
-        1, "SELECTs to the left and right of UNION do not have the same number of result columns"
+        1, "Failed to execute SQL statement: SELECTs to the left and right of UNION do not have the same number of result columns"
         -- </select4-11.2>
     })
 
@@ -1081,7 +1081,7 @@ test:do_catchsql_test(
         SELECT x FROM t2
     ]], {
         -- <select4-11.3>
-        1, "SELECTs to the left and right of UNION ALL do not have the same number of result columns"
+        1, "Failed to execute SQL statement: SELECTs to the left and right of UNION ALL do not have the same number of result columns"
         -- </select4-11.3>
     })
 
@@ -1093,7 +1093,7 @@ test:do_catchsql_test(
         SELECT x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x FROM t2
     ]], {
         -- <select4-11.4>
-        1, "SELECTs to the left and right of UNION ALL do not have the same number of result columns"
+        1, "Failed to execute SQL statement: SELECTs to the left and right of UNION ALL do not have the same number of result columns"
         -- </select4-11.4>
     })
 
@@ -1105,7 +1105,7 @@ test:do_catchsql_test(
         SELECT x FROM t2
     ]], {
         -- <select4-11.5>
-        1, "SELECTs to the left and right of EXCEPT do not have the same number of result columns"
+        1, "Failed to execute SQL statement: SELECTs to the left and right of EXCEPT do not have the same number of result columns"
         -- </select4-11.5>
     })
 
@@ -1117,7 +1117,7 @@ test:do_catchsql_test(
         SELECT x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x FROM t2
     ]], {
         -- <select4-11.6>
-        1, "SELECTs to the left and right of EXCEPT do not have the same number of result columns"
+        1, "Failed to execute SQL statement: SELECTs to the left and right of EXCEPT do not have the same number of result columns"
         -- </select4-11.6>
     })
 
@@ -1129,7 +1129,7 @@ test:do_catchsql_test(
         SELECT x FROM t2
     ]], {
         -- <select4-11.7>
-        1, "SELECTs to the left and right of INTERSECT do not have the same number of result columns"
+        1, "Failed to execute SQL statement: SELECTs to the left and right of INTERSECT do not have the same number of result columns"
         -- </select4-11.7>
     })
 
@@ -1141,7 +1141,7 @@ test:do_catchsql_test(
         SELECT x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x FROM t2
     ]], {
         -- <select4-11.8>
-        1, "SELECTs to the left and right of INTERSECT do not have the same number of result columns"
+        1, "Failed to execute SQL statement: SELECTs to the left and right of INTERSECT do not have the same number of result columns"
         -- </select4-11.8>
     })
 
@@ -1159,7 +1159,7 @@ test:do_catchsql_test(
         SELECT x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x FROM t2
     ]], {
         -- <select4-11.11>
-        1, "SELECTs to the left and right of INTERSECT do not have the same number of result columns"
+        1, "Failed to execute SQL statement: SELECTs to the left and right of INTERSECT do not have the same number of result columns"
         -- </select4-11.11>
     })
 
@@ -1177,7 +1177,7 @@ test:do_catchsql_test(
         SELECT x FROM t2
     ]], {
         -- <select4-11.12>
-        1, "SELECTs to the left and right of EXCEPT do not have the same number of result columns"
+        1, "Failed to execute SQL statement: SELECTs to the left and right of EXCEPT do not have the same number of result columns"
         -- </select4-11.12>
     })
 
@@ -1195,7 +1195,7 @@ test:do_catchsql_test(
         SELECT x FROM t2
     ]], {
         -- <select4-11.13>
-        1, "SELECTs to the left and right of UNION ALL do not have the same number of result columns"
+        1, "Failed to execute SQL statement: SELECTs to the left and right of UNION ALL do not have the same number of result columns"
         -- </select4-11.13>
     })
 
@@ -1213,7 +1213,7 @@ test:do_catchsql_test(
         SELECT x FROM t2
     ]], {
         -- <select4-11.14>
-        1, "SELECTs to the left and right of UNION do not have the same number of result columns"
+        1, "Failed to execute SQL statement: SELECTs to the left and right of UNION do not have the same number of result columns"
         -- </select4-11.14>
     })
 
@@ -1231,7 +1231,7 @@ test:do_catchsql_test(
         SELECT x FROM t2
     ]], {
         -- <select4-11.15>
-        1, "SELECTs to the left and right of UNION do not have the same number of result columns"
+        1, "Failed to execute SQL statement: SELECTs to the left and right of UNION do not have the same number of result columns"
         -- </select4-11.15>
     })
 
@@ -1241,7 +1241,7 @@ test:do_catchsql_test(
         INSERT INTO t2(rowid) VALUES(2) UNION SELECT 3,4 UNION SELECT 5,6 ORDER BY 1;
     ]], {
         -- <select4-11.16>
-        1, "SELECTs to the left and right of UNION do not have the same number of result columns"
+        1, "Failed to execute SQL statement: SELECTs to the left and right of UNION do not have the same number of result columns"
         -- </select4-11.16>
     })
 

@@ -561,7 +561,7 @@ test:do_catchsql_test(
         CREATE TABLE t8(x TEXT PRIMARY KEY AUTOINCREMENT);
     ]], {
         -- <autoinc-7.2>
-        1, "AUTOINCREMENT is only allowed on an INTEGER PRIMARY KEY or INT PRIMARY KEY"
+        1, "Failed to execute SQL statement: AUTOINCREMENT is only allowed on an INTEGER PRIMARY KEY or INT PRIMARY KEY"
         -- </autoinc-7.2>
     })
 
@@ -810,7 +810,7 @@ test:do_catchsql_test(
         INSERT INTO t1 SELECT s2, s2 FROM t1;
     ]], {
         -- <autoinc-gh-3670>
-        1, "datatype mismatch"
+        1, "Failed to execute SQL statement: datatype mismatch"
         -- </autoinc-gh-3670>
     })
 

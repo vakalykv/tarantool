@@ -97,7 +97,7 @@ test:do_test(
         return test:catchsql "CREATE INDEX index1 ON test1(f4)"
     end, {
         -- <index-2.1b>
-        1, "no such column: F4"
+        1, "Failed to execute SQL statement: no such column: F4"
         -- </index-2.1b>
     })
 
@@ -106,16 +106,12 @@ test:do_test(
 test:do_test(
     "index-2.2",
     function()
-        local msg
-        local v , msg= pcall(function()
-            test:execsql("CREATE INDEX index1 ON test1(f1, f2, f4, f3)")
-            end)
-        v = v == true and {0} or {1}
+        local result = test:catchsql("CREATE INDEX index1 ON test1(f1, f2, f4, f3)")
         test:execsql("DROP TABLE test1")
-        return table.insert(v,msg) or v
+        return result
     end, {
         -- <index-2.2>
-        1, "no such column: F4"
+        1, "Failed to execute SQL statement: no such column: F4"
         -- </index-2.2>
     })
 
@@ -411,7 +407,7 @@ test:do_catchsql_test(
         DROP INDEX index1 ON test1
     ]], {
         -- <index-8.1>
-        1, "no such index: TEST1.INDEX1"
+        1, "Failed to execute SQL statement: no such index: TEST1.INDEX1"
         -- </index-8.1>
     })
 
@@ -994,7 +990,7 @@ test:do_catchsql_test(
         CREATE INDEX temp.i21 ON t6(c);
     ]], {
         -- <index-21.1>
-        1, "near \".\": syntax error"
+        1, "Failed to execute SQL statement: near \".\": syntax error"
         -- </index-21.1>
     })
 

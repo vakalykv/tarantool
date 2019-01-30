@@ -131,7 +131,7 @@ test:do_test(
         return test:catchsql "CREATE TABLE test2(id primary key, two text default 'hi')"
     end, {
         -- <table-2.1>
-        1, "table TEST2 already exists"
+        1, "Failed to execute SQL statement: table TEST2 already exists"
         -- </table-2.1>
     })
 
@@ -266,7 +266,7 @@ test:do_catchsql_test(
         CREATE TABLE BIG(xyz int primary key)
     ]], {
         -- <table-3.2>
-        1, "table BIG already exists"
+        1, "Failed to execute SQL statement: table BIG already exists"
         -- </table-3.2>
     })
 
@@ -276,7 +276,7 @@ test:do_catchsql_test(
         CREATE TABLE biG(xyz int primary key)
     ]], {
         -- <table-3.3>
-        1, "table BIG already exists"
+        1, "Failed to execute SQL statement: table BIG already exists"
         -- </table-3.3>
     })
 
@@ -286,7 +286,7 @@ test:do_catchsql_test(
         CREATE TABLE bIg(xyz int primary key)
     ]], {
         -- <table-3.4>
-        1, "table BIG already exists"
+        1, "Failed to execute SQL statement: table BIG already exists"
         -- </table-3.4>
     })
 
@@ -377,7 +377,7 @@ test:do_catchsql_test(
         DROP TABLE test009
     ]], {
         -- <table-5.1.1>
-        1, "no such table: TEST009"
+        1, "Failed to execute SQL statement: no such table: TEST009"
         -- </table-5.1.1>
     })
 
@@ -620,7 +620,7 @@ test:do_catchsql_test(
 		CREATE TEMP TABLE t1(a INTEGER PRIMARY KEY, b VARCHAR(10));
 	]], {
 	-- <temp>
-	1, "near \"TEMP\": syntax error"
+	1, "Failed to execute SQL statement: near \"TEMP\": syntax error"
 	-- <temp>
 	})
 
@@ -630,7 +630,7 @@ test:do_catchsql_test(
 		CREATE TEMPORARY TABLE t1(a INTEGER PRIMARY KEY, b VARCHAR(10));
 	]], {
 	-- <temporary>
-	1, "near \"TEMPORARY\": syntax error"
+	1, "Failed to execute SQL statement: near \"TEMPORARY\": syntax error"
 	-- <temporary>
 	})
 
@@ -650,7 +650,7 @@ test:do_catchsql_test(
         SELECT * FROM t5;
     ]], {
         -- <table-8.7>
-        1, "no such table: T5"
+        1, "Failed to execute SQL statement: no such table: T5"
         -- </table-8.7>
     })
 
@@ -697,7 +697,7 @@ test:do_catchsql_test(
         CREATE TABLE t6(a int primary key,b int,a int);
     ]], {
         -- <table-9.1>
-        1, "duplicate column name: A"
+        1, "Failed to execute SQL statement: duplicate column name: A"
         -- </table-9.1>
     })
 
@@ -707,7 +707,7 @@ test:do_catchsql_test(
         CREATE TABLE t6(a varchar(100) primary key, b blob, a integer);
     ]], {
         -- <table-9.2>
-        1, "duplicate column name: A"
+        1, "Failed to execute SQL statement: duplicate column name: A"
         -- </table-9.2>
     })
 
@@ -722,7 +722,7 @@ test:do_catchsql_test(
         INSERT INTO t6 VALUES(NULL);
     ]], {
         -- <table-10.1>
-        1, "NOT NULL constraint failed: T6.A"
+        1, "Failed to execute SQL statement: NOT NULL constraint failed: T6.A"
         -- </table-10.1>
     })
 
@@ -1217,7 +1217,7 @@ test:do_catchsql_test(
         INSERT INTO T21 VALUES(1, -1, 1);
     ]], {
         -- <table-21.3>
-        1, "CHECK constraint failed: T21"
+        1, "Failed to execute SQL statement: CHECK constraint failed: T21"
         -- </table-21.3>
     })
 
@@ -1227,7 +1227,7 @@ test:do_catchsql_test(
         INSERT INTO T21 VALUES(1, 1, -1);
     ]], {
         -- <table-21.4>
-        1, "CHECK constraint failed: T21"
+        1, "Failed to execute SQL statement: CHECK constraint failed: T21"
         -- </table-21.4>
     })
 
@@ -1253,7 +1253,7 @@ test:do_catchsql_test(
         );
     ]], {
         -- <table-22.1>
-        1,"keyword \"CONSTRAINT\" is reserved"
+        1,"Failed to execute SQL statement: keyword \"CONSTRAINT\" is reserved"
         -- </table-22.1>
     })
 
@@ -1318,7 +1318,7 @@ test:do_catchsql_test(
         );
     ]], {
         -- <table-22.6>
-        1,"keyword \"CONSTRAINT\" is reserved"
+        1,"Failed to execute SQL statement: keyword \"CONSTRAINT\" is reserved"
         -- </table-22.6>
     })
 
@@ -1332,7 +1332,7 @@ test:do_catchsql_test(
         );
     ]], {
         -- <table-22.7>
-        1,"keyword \"CONSTRAINT\" is reserved"
+        1,"Failed to execute SQL statement: keyword \"CONSTRAINT\" is reserved"
         -- </table-22.7>
     })
 
@@ -1368,7 +1368,7 @@ test:do_catchsql_test(
         INSERT INTO T28 VALUES(0);
     ]], {
         -- <table-22.10>
-        1, "CHECK constraint failed: CHECK1"
+        1, "Failed to execute SQL statement: CHECK constraint failed: CHECK1"
         -- </table-22.10>
     })
 
@@ -1378,7 +1378,7 @@ test:do_catchsql_test(
         INSERT INTO T28 VALUES(9);
     ]], {
         -- <table-22.11>
-        1, "CHECK constraint failed: CHECK2"
+        1, "Failed to execute SQL statement: CHECK constraint failed: CHECK2"
         -- </table-22.11>
     })
 

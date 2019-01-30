@@ -106,7 +106,7 @@ test:do_catchsql_test(
         SELECT * FROM v1 ORDER BY a;
     ]], {
         -- <view-1.4>
-        1, "no such table: V1"
+        1, "Failed to execute SQL statement: no such table: V1"
         -- </view-1.4>
     })
 
@@ -189,7 +189,7 @@ test:do_catchsql_test(
         INSERT INTO v2 VALUES(1,2,3,4);
     ]], {
         -- <view-2.2>
-        1, "cannot modify V2 because it is a view"
+        1, "Failed to execute SQL statement: cannot modify V2 because it is a view"
         -- </view-2.2>
     })
 
@@ -199,7 +199,7 @@ test:do_catchsql_test(
         UPDATE v2 SET a=10 WHERE a=5;
     ]], {
         -- <view-2.3>
-        1, "cannot modify V2 because it is a view"
+        1, "Failed to execute SQL statement: cannot modify V2 because it is a view"
         -- </view-2.3>
     })
 
@@ -209,7 +209,7 @@ test:do_catchsql_test(
         DELETE FROM v2;
     ]], {
         -- <view-2.4>
-        1, "cannot modify V2 because it is a view"
+        1, "Failed to execute SQL statement: cannot modify V2 because it is a view"
         -- </view-2.4>
     })
 
@@ -293,7 +293,7 @@ test:do_catchsql_test(
         CREATE VIEW v1err(x,y DESC,z) AS SELECT a, b+c, c-b FROM t1;
     ]], {
         -- <view-3.3.4>
-        1, [[syntax error after column name "y"]]
+        1, [[Failed to execute SQL statement: syntax error after column name "y"]]
         -- </view-3.3.4>
     })
 
@@ -302,7 +302,7 @@ test:do_catchsql_test(
     [[
         CREATE VIEW v1err(x,y) AS SELECT a, b+c, c-b FROM t1;
         SELECT * FROM v1err;
-    ]], {1, "expected 2 columns for 'V1ERR' but got 3"})
+    ]], {1, "Failed to execute SQL statement: expected 2 columns for 'V1ERR' but got 3"})
 
 test:do_catchsql_test(
     "view-3.3.5.2",
@@ -310,7 +310,7 @@ test:do_catchsql_test(
         DROP VIEW IF EXISTS v1err;
         CREATE VIEW v1err(w,x,y,z) AS SELECT a, b+c, c-b FROM t1;
         SELECT * FROM v1err;
-    ]], {1, "expected 4 columns for 'V1ERR' but got 3"})
+    ]], {1, "Failed to execute SQL statement: expected 4 columns for 'V1ERR' but got 3"})
 
 -- #MUST_WORK_TEST no query solution
 -- # ifcapable compound {
@@ -348,7 +348,7 @@ test:do_catchsql_test(
         DROP VIEW t1;
     ]], {
         -- <view-4.1>
-        1, "use DROP TABLE to delete table T1"
+        1, "Failed to execute SQL statement: use DROP TABLE to delete table T1"
         -- </view-4.1>
     })
 
@@ -368,7 +368,7 @@ test:do_catchsql_test(
         DROP TABLE v1;
     ]], {
         -- <view-4.3>
-        1, "use DROP VIEW to delete view V1"
+        1, "Failed to execute SQL statement: use DROP VIEW to delete view V1"
         -- </view-4.3>
     })
 
@@ -388,7 +388,7 @@ test:do_catchsql_test(
         CREATE INDEX i1v1 ON v1(xyz);
     ]], {
         -- <view-4.5>
-        1, "views can not be indexed"
+        1, "Failed to execute SQL statement: views can not be indexed"
         -- </view-4.5>
     })
 
@@ -858,7 +858,7 @@ test:do_catchsql_test(
         CREATE VIEW v12 AS SELECT a FROM t1 WHERE b=?
     ]], {
         -- <view-12.1>
-        1, "parameters are not allowed in views"
+        1, "Failed to execute SQL statement: parameters are not allowed in views"
         -- </view-12.1>
     })
 
@@ -868,7 +868,7 @@ test:do_catchsql_test(
         CREATE VIEW v12(x) AS SELECT a FROM t1 WHERE b=?
     ]], {
         -- <view-12.2>
-        1, "parameters are not allowed in views"
+        1, "Failed to execute SQL statement: parameters are not allowed in views"
         -- </view-12.2>
     })
 
@@ -905,7 +905,7 @@ if (0 > 0)
             SELECT * FROM temp.t1;
         ]], {
             -- <view-14.1>
-            1, "view t1 is circularly defined"
+            1, "Failed to execute SQL statement: view t1 is circularly defined"
             -- </view-14.1>
         })
 
@@ -967,7 +967,7 @@ test:do_catchsql_test(
         DROP VIEW nosuchview
     ]], {
         -- <view-17.1>
-        1, "no such view: NOSUCHVIEW"
+        1, "Failed to execute SQL statement: no such view: NOSUCHVIEW"
         -- </view-17.1>
     })
 
@@ -977,7 +977,7 @@ test:do_catchsql_test(
         DROP VIEW main.nosuchview
     ]], {
         -- <view-17.2>
-        1, "near \".\": syntax error"
+        1, "Failed to execute SQL statement: near \".\": syntax error"
         -- </view-17.2>
     })
 

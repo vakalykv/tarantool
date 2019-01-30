@@ -49,7 +49,7 @@ test:do_catchsql_test(
         SELECT * FROM t1 WHERE a = (SELECT * FROM t1)
     ]], {
         -- <subselect-1.2>
-        1, "row value misused"
+        1, "Failed to execute SQL statement: row value misused"
         -- </subselect-1.2>
     })
 

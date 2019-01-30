@@ -130,7 +130,7 @@ test:do_catchsql_test(
         SELECT 5 IN (SELECT a,b FROM t2);
     ]], {
         -- <select7-5.1>
-        1, "sub-select returns 2 columns - expected 1"
+        1, "Failed to execute SQL statement: sub-select returns 2 columns - expected 1"
         -- </select7-5.1>
     })
 
@@ -140,7 +140,7 @@ test:do_catchsql_test(
         SELECT 5 IN (SELECT * FROM t2);
     ]], {
         -- <select7-5.2>
-        1, "sub-select returns 2 columns - expected 1"
+        1, "Failed to execute SQL statement: sub-select returns 2 columns - expected 1"
         -- </select7-5.2>
     })
 
@@ -150,7 +150,7 @@ test:do_catchsql_test(
         SELECT 5 IN (SELECT a,b FROM t2 UNION SELECT b,a FROM t2);
     ]], {
         -- <select7-5.3>
-        1, "sub-select returns 2 columns - expected 1"
+        1, "Failed to execute SQL statement: sub-select returns 2 columns - expected 1"
         -- </select7-5.3>
     })
 
@@ -160,7 +160,7 @@ test:do_catchsql_test(
         SELECT 5 IN (SELECT * FROM t2 UNION SELECT * FROM t2);
     ]], {
         -- <select7-5.4>
-        1, "sub-select returns 2 columns - expected 1"
+        1, "Failed to execute SQL statement: sub-select returns 2 columns - expected 1"
         -- </select7-5.4>
     })
 
@@ -179,7 +179,7 @@ test:do_catchsql_test(
     "select7-6.2",
     sql, {
         -- <select7-6.2>
-        1, "Too many UNION or EXCEPT or INTERSECT operations (limit 30 is set)"
+        1, "Failed to execute SQL statement: Too many UNION or EXCEPT or INTERSECT operations (limit 30 is set)"
         -- </select7-6.2>
     })
 
@@ -278,7 +278,7 @@ test:do_catchsql_test(
         ) WHERE y=1
     ]], {
         -- <8.1>
-        1, "SELECTs to the left and right of UNION do not have the same number of result columns"
+        1, "Failed to execute SQL statement: SELECTs to the left and right of UNION do not have the same number of result columns"
         -- </8.1>
     })
 
@@ -289,7 +289,7 @@ test:do_catchsql_test(
         EXPLAIN QUERY PLAN SELECT * FROM v0 WHERE x='0' OR y;
     ]], {
         -- <8.2>
-        1, "SELECTs to the left and right of UNION do not have the same number of result columns"
+        1, "Failed to execute SQL statement: SELECTs to the left and right of UNION do not have the same number of result columns"
         -- </8.2>
     })
 

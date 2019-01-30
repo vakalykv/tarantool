@@ -279,7 +279,7 @@ test:do_eqp_test(
         SELECT * FROM v4 WHERE d='xyz' AND c='def'
     ]], {
         -- <index7-6.4>
-    {0, 0, 0, "SEARCH TABLE T4 USING COVERING INDEX I4 (C=?)"}
+    0, 0, 0, "SEARCH TABLE T4 USING COVERING INDEX I4 (C=?)"
         -- </index7-6.4>
     })
 
@@ -292,7 +292,7 @@ test:do_catchsql_test(
         CREATE TABLE t1 (a INTEGER PRIMARY KEY, b INTEGER);
         CREATE UNIQUE INDEX i ON t1 (a) WHERE a = 3;
     ]], {
-        1, "keyword \"WHERE\" is reserved"
+        1, "Failed to execute SQL statement: keyword \"WHERE\" is reserved"
     })
 
 -- Currently, when a user tries to create index (or primary key,

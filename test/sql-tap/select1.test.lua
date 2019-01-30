@@ -13,7 +13,7 @@ test:do_catchsql_test(
         SELECT * FROM test1
     ]], {
         -- <select1-1.1>
-        1, "no such table: TEST1"
+        1, "Failed to execute SQL statement: no such table: TEST1"
         -- </select1-1.1>
     })
 
@@ -25,7 +25,7 @@ test:do_catchsql_test(
         SELECT * FROM test1, test2
     ]], {
         -- <select1-1.2>
-        1, "no such table: TEST2"
+        1, "Failed to execute SQL statement: no such table: TEST2"
         -- </select1-1.2>
     })
 
@@ -35,7 +35,7 @@ test:do_catchsql_test(
         SELECT * FROM test2, test1
     ]], {
         -- <select1-1.3>
-        1, "no such table: TEST2"
+        1, "Failed to execute SQL statement: no such table: TEST2"
         -- </select1-1.3>
     })
 
@@ -244,7 +244,7 @@ test:do_catchsql_test(
         SELECT count(f1,f2) FROM test1
     ]], {
         -- <select1-2.1>
-        1, "wrong number of arguments to function COUNT()"
+        1, "Failed to execute SQL statement: wrong number of arguments to function COUNT()"
         -- </select1-2.1>
     })
 
@@ -324,7 +324,7 @@ test:do_catchsql_test(
         SELECT min(*) FROM test1
     ]], {
         -- <select1-2.6>
-        1, "wrong number of arguments to function MIN()"
+        1, "Failed to execute SQL statement: wrong number of arguments to function MIN()"
         -- </select1-2.6>
     })
 
@@ -389,7 +389,7 @@ test:do_catchsql_test(
         SELECT MAX(*) FROM test1
     ]], {
         -- <select1-2.9>
-        1, "wrong number of arguments to function MAX()"
+        1, "Failed to execute SQL statement: wrong number of arguments to function MAX()"
         -- </select1-2.9>
     })
 
@@ -469,7 +469,7 @@ test:do_catchsql_test(
         SELECT SUM(*) FROM test1
     ]], {
         -- <select1-2.14>
-        1, "wrong number of arguments to function SUM()"
+        1, "Failed to execute SQL statement: wrong number of arguments to function SUM()"
         -- </select1-2.14>
     })
 
@@ -489,7 +489,7 @@ test:do_catchsql_test(
         SELECT sum(f1,f2) FROM test1
     ]], {
         -- <select1-2.16>
-        1, "wrong number of arguments to function SUM()"
+        1, "Failed to execute SQL statement: wrong number of arguments to function SUM()"
         -- </select1-2.16>
     })
 
@@ -519,7 +519,7 @@ test:do_catchsql_test(
         SELECT XYZZY(f1) FROM test1
     ]], {
         -- <select1-2.18>
-        1, "no such function: XYZZY"
+        1, "Failed to execute SQL statement: no such function: XYZZY"
         -- </select1-2.18>
     })
 
@@ -539,7 +539,7 @@ test:do_catchsql_test(
         SELECT SUM(min(f1)) FROM test1
     ]], {
         -- <select1-2.20>
-        1, "misuse of aggregate function MIN()"
+        1, "Failed to execute SQL statement: misuse of aggregate function MIN()"
         -- </select1-2.20>
     })
 
@@ -551,7 +551,7 @@ test:do_catchsql_test(
         SELECT min(f1) AS m FROM test1 GROUP BY f1 HAVING max(m+5)<10
     ]], {
         -- <select1-2.21>
-        1, "misuse of aliased aggregate M"
+        1, "Failed to execute SQL statement: misuse of aliased aggregate M"
         -- </select1-2.21>
     })
 
@@ -563,7 +563,7 @@ test:do_catchsql_test(
         HAVING max(m+5)<10
     ]], {
         -- <select1-2.22>
-        1, "misuse of aliased aggregate M"
+        1, "Failed to execute SQL statement: misuse of aliased aggregate M"
         -- </select1-2.22>
     })
 
@@ -691,7 +691,7 @@ test:do_catchsql_test(
         SELECT f1 FROM test1 WHERE count(f1,f2)!=11
     ]], {
         -- <select1-3.9>
-        1, "wrong number of arguments to function COUNT()"
+        1, "Failed to execute SQL statement: wrong number of arguments to function COUNT()"
         -- </select1-3.9>
     })
 
@@ -733,7 +733,7 @@ test:do_catchsql_test(
         SELECT f1 FROM test1 ORDER BY min(f1)
     ]], {
         -- <select1-4.4>
-        1, "misuse of aggregate: MIN()"
+        1, "Failed to execute SQL statement: misuse of aggregate: MIN()"
         -- </select1-4.4>
     })
 
@@ -743,7 +743,7 @@ test:do_catchsql_test(
         INSERT INTO test1(f1) SELECT f1 FROM test1 ORDER BY min(f1);
     ]], {
         -- <select1-4.5>
-        1, "misuse of aggregate: MIN()"
+        1, "Failed to execute SQL statement: misuse of aggregate: MIN()"
         -- </select1-4.5>
     })
 
@@ -840,7 +840,7 @@ test:do_catchsql_test(
         SELECT * FROM t5 ORDER BY 3;
     ]], {
         -- <select1-4.10.1>
-        1, "1st ORDER BY term out of range - should be between 1 and 2"
+        1, "Failed to execute SQL statement: 1st ORDER BY term out of range - should be between 1 and 2"
         -- </select1-4.10.1>
     })
 
@@ -850,7 +850,7 @@ test:do_catchsql_test(
         SELECT * FROM t5 ORDER BY -1;
     ]], {
         -- <select1-4.10.2>
-        1, "1st ORDER BY term out of range - should be between 1 and 2"
+        1, "Failed to execute SQL statement: 1st ORDER BY term out of range - should be between 1 and 2"
         -- </select1-4.10.2>
     })
 
@@ -1043,13 +1043,13 @@ test:do_catchsql2_test(
 test:do_test(
     "select1-6.5.1",
     function()
-        test:execsql2 "PRAGMA full_column_names=on"
+        test:execsql "PRAGMA full_column_names=on"
         local msg
         v = pcall( function ()
                 msg = test:execsql2 "SELECT test1.f1+F2 FROM test1 ORDER BY f2"
             end)
         v = v == true and {0} or {1}
-        test:execsql2 "PRAGMA full_column_names=off"
+        test:execsql "PRAGMA full_column_names=off"
         return table.insert(v,msg) or v
     end, {
         -- <select1-6.5.1>
@@ -1075,30 +1075,30 @@ test:do_catchsql2_test(
         -- </select1-6.7>
     })
 
-test:do_catchsql2_test(
+test:do_catchsql_test(
     "select1-6.8",
     [[SELECT A.f1, f1 FROM test1 as A, test1 as B 
          ORDER BY f2]], {
         -- <select1-6.8>
-        1, "ambiguous column name: F1"
+        1, "Failed to execute SQL statement: ambiguous column name: F1"
         -- </select1-6.8>
     })
 
-test:do_catchsql2_test(
+test:do_catchsql_test(
     "select1-6.8b",
     [[SELECT A.f1, B.f1 FROM test1 as A, test1 as B 
          ORDER BY f2]], {
         -- <select1-6.8b>
-        1, "ambiguous column name: F2"
+        1, "Failed to execute SQL statement: ambiguous column name: F2"
         -- </select1-6.8b>
     })
 
-test:do_catchsql2_test(
+test:do_catchsql_test(
     "select1-6.8c",
     [[SELECT A.f1, f1 FROM test1 as A, test1 as A 
          ORDER BY f2]], {
         -- <select1-6.8c>
-        1, "ambiguous column name: A.F1"
+        1, "Failed to execute SQL statement: ambiguous column name: A.F1"
         -- </select1-6.8c>
     })
 
@@ -1327,14 +1327,14 @@ test:do_catchsql2_test(
             -- </select1-6.10>
         })
 
-    test:do_catchsql2_test(
+    test:do_catchsql_test(
         "select1-6.11",
         [[
             SELECT f1 FROM test1 UNION SELECT f2+100 FROM test1
             ORDER BY f2+101;
         ]], {
             -- <select1-6.11>
-            1, "1st ORDER BY term does not match any column in the result set"
+            1, "Failed to execute SQL statement: 1st ORDER BY term does not match any column in the result set"
             -- </select1-6.11>
         })
 
@@ -1406,7 +1406,7 @@ test:do_catchsql_test(
         SELECT f1 FROM test1 WHERE f2=;
     ]], {
         -- <select1-7.1>
-        1, [[near ";": syntax error]]
+        1, [[Failed to execute SQL statement: near ";": syntax error]]
         -- </select1-7.1>
     })
 
@@ -1416,7 +1416,7 @@ test:do_catchsql_test(
             SELECT f1 FROM test1 UNION SELECT WHERE;
         ]], {
             -- <select1-7.2>
-            1, [[keyword "WHERE" is reserved]]
+            1, [[Failed to execute SQL statement: keyword "WHERE" is reserved]]
             -- </select1-7.2>
         })
 
@@ -1428,7 +1428,7 @@ test:do_catchsql_test(
     [[
         SELECT f1 FROM test1 as "hi", test2 as]], {
         -- <select1-7.3>
-        1, [[keyword "as" is reserved]]
+        1, [[Failed to execute SQL statement: keyword "as" is reserved]]
         -- </select1-7.3>
     })
 
@@ -1438,7 +1438,7 @@ test:do_catchsql_test(
         SELECT f1 FROM test1 ORDER BY;
     ]], {
         -- <select1-7.4>
-        1, [[near ";": syntax error]]
+        1, [[Failed to execute SQL statement: near ";": syntax error]]
         -- </select1-7.4>
     })
 
@@ -1448,7 +1448,7 @@ test:do_catchsql_test(
         SELECT f1 FROM test1 ORDER BY f1 desc, f2 where;
     ]], {
         -- <select1-7.5>
-        1, [[keyword "where" is reserved]]
+        1, [[Failed to execute SQL statement: keyword "where" is reserved]]
         -- </select1-7.5>
     })
 
@@ -1458,7 +1458,7 @@ test:do_catchsql_test(
         SELECT count(f1,f2 FROM test1;
     ]], {
         -- <select1-7.6>
-        1, [[keyword "FROM" is reserved]]
+        1, [[Failed to execute SQL statement: keyword "FROM" is reserved]]
         -- </select1-7.6>
     })
 
@@ -1468,7 +1468,7 @@ test:do_catchsql_test(
         SELECT count(f1,f2+) FROM test1;
     ]], {
         -- <select1-7.7>
-        1, [[near ")": syntax error]]
+        1, [[Failed to execute SQL statement: near ")": syntax error]]
         -- </select1-7.7>
     })
 
@@ -1478,7 +1478,7 @@ test:do_catchsql_test(
         SELECT f1 FROM test1 ORDER BY f2, f1+;
     ]], {
         -- <select1-7.8>
-        1, [[near ";": syntax error]]
+        1, [[Failed to execute SQL statement: near ";": syntax error]]
         -- </select1-7.8>
     })
 
@@ -1488,7 +1488,7 @@ test:do_catchsql_test(
         SELECT f1 FROM test1 LIMIT 5+3 OFFSET 11 ORDER BY f2;
     ]], {
         -- <select1-7.9>
-        1, [[keyword "ORDER" is reserved]]
+        1, [[Failed to execute SQL statement: keyword "ORDER" is reserved]]
         -- </select1-7.9>
     })
 
@@ -1567,22 +1567,20 @@ test:do_execsql_test(
 test:do_test(
     "select1-9.2",
     function()
-        local r = box.sql.execute "SELECT * FROM test1 WHERE f1<0"
-        return r[0]
+        return box.execute("SELECT * FROM test1 WHERE f1<0").metadata
     end, {
         -- <select1-9.2>
-        "F1", "F2"
+        {name = "F1", type ="INTEGER"},{name = "F2", type = "INTEGER"}
         -- </select1-9.2>
     })
 
 test:do_test(
         "select1-9.3",
         function()
-            local r = box.sql.execute "SELECT * FROM test1 WHERE f1<(select count(*) from test2)"
-            return r[0]
+            return box.execute("SELECT * FROM test1 WHERE f1<(select count(*) from test2)").metadata
         end, {
             -- <select1-9.3>
-            "F1", "F2"
+        {name = "F1", type ="INTEGER"},{name = "F2", type = "INTEGER"}
             -- </select1-9.3>
         })
 
@@ -1591,22 +1589,20 @@ test:do_test(
 test:do_test(
     "select1-9.4",
     function()
-        local r = box.sql.execute "SELECT * FROM test1 ORDER BY f1"
-        return r[0]
+        return box.execute("SELECT * FROM test1 ORDER BY f1").metadata
     end, {
         -- <select1-9.4>
-        "F1", "F2"
+        {name = "F1", type ="INTEGER"},{name = "F2", type = "INTEGER"}
         -- </select1-9.4>
     })
 
 test:do_test(
     "select1-9.5",
     function()
-        local r = box.sql.execute "SELECT * FROM test1 WHERE f1<0 ORDER BY f1"
-        return r[0]
+        return box.execute("SELECT * FROM test1 WHERE f1<0 ORDER BY f1").metadata
     end, {
         -- <select1-9.5>
-        "F1", "F2"
+        {name = "F1", type ="INTEGER"},{name = "F2", type = "INTEGER"}
         -- </select1-9.5>
     })
 
@@ -1795,7 +1791,7 @@ test:do_catchsql_test(
         SELECT t5.* FROM t3, t4;
     ]], {
         -- <select1-11.10>
-        1, "no such table: T5"
+        1, "Failed to execute SQL statement: no such table: T5"
         -- </select1-11.10>
     })
 
@@ -1805,7 +1801,7 @@ test:do_catchsql_test(
         SELECT t3.* FROM t3 AS x, t4;
     ]], {
         -- <select1-11.11>
-        1, "no such table: T3"
+        1, "Failed to execute SQL statement: no such table: T3"
         -- </select1-11.11>
     })
 
@@ -2075,7 +2071,7 @@ test:do_catchsql_test(
         SELECT 1 FROM (SELECT *)
     ]], {
         -- <select1-16.1>
-        1, "no tables specified"
+        1, "Failed to execute SQL statement: no tables specified"
         -- </select1-16.1>
     })
 

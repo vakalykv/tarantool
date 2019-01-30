@@ -220,7 +220,7 @@ test:do_catchsql_test(
         SELECT a FROM t1 WHERE c IN (10,20)
     ]], {
         -- <in-2.11>
-        1, "no such column: C"
+        1, "Failed to execute SQL statement: no such column: C"
         -- </in-2.11>
     })
 
@@ -594,7 +594,7 @@ test:do_catchsql_test(
         SELECT b FROM t1 WHERE a NOT IN tb;
     ]], {
         -- <in-9.4>
-        1, "sub-select returns 2 columns - expected 1"
+        1, "Failed to execute SQL statement: sub-select returns 2 columns - expected 1"
         -- </in-9.4>
     })
 
@@ -677,7 +677,7 @@ test:do_catchsql_test(
         );
     ]], {
         -- <in-12.2>
-        1, "sub-select returns 2 columns - expected 1"
+        1, "Failed to execute SQL statement: sub-select returns 2 columns - expected 1"
         -- </in-12.2>
     })
 
@@ -689,7 +689,7 @@ test:do_catchsql_test(
         );
     ]], {
         -- <in-12.3>
-        1, "sub-select returns 2 columns - expected 1"
+        1, "Failed to execute SQL statement: sub-select returns 2 columns - expected 1"
         -- </in-12.3>
     })
 
@@ -701,7 +701,7 @@ test:do_catchsql_test(
         );
     ]], {
         -- <in-12.4>
-        1, "sub-select returns 2 columns - expected 1"
+        1, "Failed to execute SQL statement: sub-select returns 2 columns - expected 1"
         -- </in-12.4>
     })
 
@@ -713,7 +713,7 @@ test:do_catchsql_test(
         );
     ]], {
         -- <in-12.5>
-        1, "sub-select returns 2 columns - expected 1"
+        1, "Failed to execute SQL statement: sub-select returns 2 columns - expected 1"
         -- </in-12.5>
     })
 
@@ -725,7 +725,7 @@ test:do_catchsql_test(
         );
     ]], {
         -- <in-12.6>
-        1, "SELECTs to the left and right of UNION ALL do not have the same number of result columns"
+        1, "Failed to execute SQL statement: SELECTs to the left and right of UNION ALL do not have the same number of result columns"
         -- </in-12.6>
     })
 
@@ -737,7 +737,7 @@ test:do_catchsql_test(
         );
     ]], {
         -- <in-12.7>
-        1, "SELECTs to the left and right of UNION do not have the same number of result columns"
+        1, "Failed to execute SQL statement: SELECTs to the left and right of UNION do not have the same number of result columns"
         -- </in-12.7>
     })
 
@@ -749,7 +749,7 @@ test:do_catchsql_test(
         );
     ]], {
         -- <in-12.8>
-        1, "SELECTs to the left and right of EXCEPT do not have the same number of result columns"
+        1, "Failed to execute SQL statement: SELECTs to the left and right of EXCEPT do not have the same number of result columns"
         -- </in-12.8>
     })
 
@@ -761,7 +761,7 @@ test:do_catchsql_test(
         );
     ]], {
         -- <in-12.9>
-        1, "SELECTs to the left and right of INTERSECT do not have the same number of result columns"
+        1, "Failed to execute SQL statement: SELECTs to the left and right of INTERSECT do not have the same number of result columns"
         -- </in-12.9>
     })
 
@@ -775,7 +775,7 @@ test:do_catchsql_test(
         );
     ]], {
         -- <in-12.10>
-        1, "SELECTs to the left and right of UNION ALL do not have the same number of result columns"
+        1, "Failed to execute SQL statement: SELECTs to the left and right of UNION ALL do not have the same number of result columns"
         -- </in-12.10>
     })
 
@@ -787,7 +787,7 @@ test:do_catchsql_test(
         );
     ]], {
         -- <in-12.11>
-        1, "SELECTs to the left and right of UNION do not have the same number of result columns"
+        1, "Failed to execute SQL statement: SELECTs to the left and right of UNION do not have the same number of result columns"
         -- </in-12.11>
     })
 
@@ -799,7 +799,7 @@ test:do_catchsql_test(
         );
     ]], {
         -- <in-12.12>
-        1, "SELECTs to the left and right of EXCEPT do not have the same number of result columns"
+        1, "Failed to execute SQL statement: SELECTs to the left and right of EXCEPT do not have the same number of result columns"
         -- </in-12.12>
     })
 
@@ -811,7 +811,7 @@ test:do_catchsql_test(
         );
     ]], {
         -- <in-12.13>
-        1, "SELECTs to the left and right of INTERSECT do not have the same number of result columns"
+        1, "Failed to execute SQL statement: SELECTs to the left and right of INTERSECT do not have the same number of result columns"
         -- </in-12.13>
     })
 
@@ -823,7 +823,7 @@ test:do_catchsql_test(
         );
     ]], {
         -- <in-12.14>
-        1, "sub-select returns 2 columns - expected 1"
+        1, "Failed to execute SQL statement: sub-select returns 2 columns - expected 1"
         -- </in-12.14>
     })
 
@@ -835,7 +835,7 @@ test:do_catchsql_test(
         );
     ]], {
         -- <in-12.15>
-        1, "SELECTs to the left and right of UNION ALL do not have the same number of result columns"
+        1, "Failed to execute SQL statement: SELECTs to the left and right of UNION ALL do not have the same number of result columns"
         -- </in-12.15>
     })
 
@@ -1058,7 +1058,7 @@ test:do_catchsql_test(
         SELECT 0 WHERE (SELECT 0,0) OR (0 IN (1,2));
     ]], {
         -- <in-13.15>
-        1, "sub-select returns 2 columns - expected 1"
+        1, "Failed to execute SQL statement: sub-select returns 2 columns - expected 1"
         -- </in-13.15>
     })
 

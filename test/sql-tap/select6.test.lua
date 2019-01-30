@@ -905,7 +905,7 @@ test:do_execsql_test(
         CREATE TABLE k(o  INT primary key);
     ]])
 
-err = { 1, "SELECTs to the left and right of UNION ALL do not have the same number of result columns" }
+err = { 1, "Failed to execute SQL statement: SELECTs to the left and right of UNION ALL do not have the same number of result columns" }
 test:do_execsql_test(
     10.2,
     [[
@@ -1123,13 +1123,16 @@ test:do_execsql_test(
           SET u = 1;
         SELECT COUNT(*) FROM t1 WHERE u IN
                 (SELECT u FROM t2 WHERE u IN (SELECT u FROM t1));
-        DROP TABLE t1;
-        DROP TABLE t2;
     ]], {
         -- <12.5>
         0
         -- </12.5>
     })
+
+test:execsql([[
+    DROP TABLE t1;
+    DROP TABLE t2;
+]])
 
 test:finish_test()
 

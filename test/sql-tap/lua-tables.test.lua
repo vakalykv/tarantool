@@ -40,7 +40,7 @@ test:do_execsql_test(
 test:do_catchsql_test(
     "lua-tables-4",
     [[SELECT * from t1]],
-    {1, "no such table: T1"}
+    {1, "Failed to execute SQL statement: no such table: T1"}
 )
 
 test:do_catchsql_test(

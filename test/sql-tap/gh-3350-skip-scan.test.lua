@@ -34,7 +34,6 @@ test:do_execsql_test(
             INSERT INTO t1 SELECT a, b, c, d, e, f FROM data;
             ANALYZE;
             SELECT COUNT(*) FROM t1 WHERE a < 'aaad';
-            DROP TABLE t1;
         ]], {
             3
         })
@@ -51,7 +50,6 @@ test:do_execsql_test(
             INSERT INTO t2 SELECT a, b, c, d, e, f FROM data;
             ANALYZE;
             SELECT COUNT(*) FROM t2 WHERE f < 500;
-            DROP TABLE t2;
         ]], {
             500
         }
@@ -70,8 +68,6 @@ test:do_execsql_test(
             INSERT INTO t3 SELECT a, b, c, d, e, f FROM data;
             ANALYZE;
             SELECT COUNT(*) FROM t3 WHERE f < 500;
-            DROP INDEX i31 on t3;
-            DROP TABLE t3;
         ]], {
             500
         }
@@ -103,6 +99,5 @@ test:do_execsql_test(
             "abc", 345, 7, 8, "def", 345, 9, 10
         }
 )
-
 
 test:finish_test()

@@ -614,7 +614,7 @@ test:do_catchsql_test(
         SELECT max((SELECT count(x) FROM t35b)) FROM t35a;
     ]], {
         -- <subquery-3.5.4>
-        1, "misuse of aggregate: COUNT()"
+        1, "Failed to execute SQL statement: misuse of aggregate: COUNT()"
         -- </subquery-3.5.4>
     })
 
@@ -624,7 +624,7 @@ test:do_catchsql_test(
         SELECT max((SELECT count(x) FROM t35b)) FROM t35a;
     ]], {
         -- <subquery-3.5.5>
-        1, "misuse of aggregate: COUNT()"
+        1, "Failed to execute SQL statement: misuse of aggregate: COUNT()"
         -- </subquery-3.5.5>
     })
 
@@ -634,7 +634,7 @@ test:do_catchsql_test(
         SELECT max((SELECT a FROM (SELECT count(x) AS a FROM t35b))) FROM t35a;
     ]], {
         -- <subquery-3.5.6>
-        1, "misuse of aggregate: COUNT()"
+        1, "Failed to execute SQL statement: misuse of aggregate: COUNT()"
         -- </subquery-3.5.6>
     })
 
@@ -946,7 +946,7 @@ test:do_catchsql_test(
 			       SELECT * FROM table1);
 	]], {
 		-- <subquery-9.1>
-		1, 'ORDER BY clause should come after UNION ALL not before'
+		1, 'Failed to execute SQL statement: ORDER BY clause should come after UNION ALL not before'
 		-- <subquery-9.1>
 	})
 
@@ -970,7 +970,7 @@ test:do_catchsql_test(
 			       SELECT * FROM table1);
 	]], {
              -- <subquery-9.3>
-             1, 'ORDER BY clause should come after UNION ALL not before'
+             1, 'Failed to execute SQL statement: ORDER BY clause should come after UNION ALL not before'
              -- <subquery-9.3>
 	})
 

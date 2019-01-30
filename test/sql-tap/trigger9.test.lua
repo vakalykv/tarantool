@@ -304,13 +304,15 @@ test:do_execsql_test(
         START TRANSACTION;
           UPDATE v1 SET b = 'hello';
           SELECT * FROM t2;
-        ROLLBACK;
-        DROP VIEW v1;
     ]], {
         -- <trigger9-3.2>
         1, 2, 3
         -- </trigger9-3.2>
     })
+test:execsql([[
+    ROLLBACK;
+    DROP VIEW v1;
+]])
 
 test:do_test(
     "trigger9-3.3",
@@ -329,14 +331,16 @@ test:do_test(
             START TRANSACTION;
               UPDATE v1 SET c = 'hello';
               SELECT * FROM t2;
-            ROLLBACK;
-            DROP VIEW v1;
         ]])
     end, {
         -- <trigger9-3.3>
         2, 3
         -- </trigger9-3.3>
     })
+test:execsql([[
+    ROLLBACK;
+    DROP VIEW v1;
+]])
 
 test:do_execsql_test(
     "trigger9-3.4",
@@ -350,13 +354,15 @@ test:do_execsql_test(
           INSERT INTO t3 VALUES(4, 3, 'three');
           UPDATE v1 SET b = 'hello';
           SELECT * FROM t2;
-        ROLLBACK;
-        DROP VIEW v1;
     ]], {
         -- <trigger9-3.4>
         1, 2, 3
         -- </trigger9-3.4>
     })
+test:execsql([[
+    ROLLBACK;
+    DROP VIEW v1;
+]])
 
 test:do_execsql_test(
     "trigger9-3.5",
@@ -370,13 +376,15 @@ test:do_execsql_test(
           INSERT INTO t3 VALUES(5, 1, 'uno');
           UPDATE v1 SET b = 'hello';
           SELECT * FROM t2;
-        ROLLBACK;
-        DROP VIEW v1;
     ]], {
         -- <trigger9-3.5>
         1, 2, 3
         -- </trigger9-3.5>
     })
+test:execsql([[
+    ROLLBACK;
+    DROP VIEW v1;
+]])
 
 test:do_execsql_test(
     "trigger9-3.6",
@@ -391,13 +399,15 @@ test:do_execsql_test(
           INSERT INTO t3 VALUES(6, 1, 'zero');
           UPDATE v1 SET b = 'hello';
           SELECT * FROM t2;
-        ROLLBACK;
-        DROP VIEW v1;
     ]], {
         -- <trigger9-3.6>
         2
         -- </trigger9-3.6>
     })
+test:execsql([[
+    ROLLBACK;
+    DROP VIEW v1;
+]])
 
 
 

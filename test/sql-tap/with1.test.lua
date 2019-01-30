@@ -123,7 +123,7 @@ test:do_catchsql_test(3.1, [[
   SELECT * FROM tmp1;
 ]], {
   -- <3.1>
-  1, "circular reference: TMP1"
+  1, "Failed to execute SQL statement: circular reference: TMP1"
   -- </3.1>
 })
 
@@ -134,7 +134,7 @@ test:do_catchsql_test(3.2, [[
   SELECT * FROM tmp;
 ]], {
   -- <3.2>
-  1, "duplicate WITH table name: TMP"
+  1, "Failed to execute SQL statement: duplicate WITH table name: TMP"
   -- </3.2>
 })
 
@@ -178,7 +178,7 @@ test:do_catchsql_test(3.6, [[
   SELECT * FROM tmp;
 ]], {
   -- <3.6>
-  1, [[keyword "SELECT" is reserved]]
+  1, [[Failed to execute SQL statement: keyword "SELECT" is reserved]]
   -- </3.6>
 })
 
@@ -334,7 +334,7 @@ test:do_catchsql_test("5.6.1", [[
   SELECT * FROM i;
 ]], {
   -- <5.6.1>
-  1, "table I has 1 values for 2 columns"
+  1, "Failed to execute SQL statement: table I has 1 values for 2 columns"
   -- </5.6.1>
 })
 
@@ -343,7 +343,7 @@ test:do_catchsql_test("5.6.2", [[
   SELECT * FROM i;
 ]], {
   -- <5.6.2>
-  1, "table I has 2 values for 1 columns"
+  1, "Failed to execute SQL statement: table I has 2 values for 1 columns"
   -- </5.6.2>
 })
 
@@ -353,7 +353,7 @@ test:do_catchsql_test("5.6.3", [[
   SELECT * FROM i;
 ]], {
   -- <5.6.3>
-  1, "table I has 2 values for 1 columns"
+  1, "Failed to execute SQL statement: table I has 2 values for 1 columns"
   -- </5.6.3>
 })
 
@@ -362,7 +362,7 @@ test:do_catchsql_test("5.6.4", [[
   SELECT * FROM i;
 ]], {
   -- <5.6.4>
-  1, "table I has 2 values for 1 columns"
+  1, "Failed to execute SQL statement: table I has 2 values for 1 columns"
   -- </5.6.4>
 })
 
@@ -371,7 +371,7 @@ test:do_catchsql_test("5.6.5", [[
   SELECT * FROM i;
 ]], {
   -- <5.6.5>
-  1, "SELECTs to the left and right of UNION ALL do not have the same number of result columns"
+  1, "Failed to execute SQL statement: SELECTs to the left and right of UNION ALL do not have the same number of result columns"
   -- </5.6.5>
 })
 
@@ -380,7 +380,7 @@ test:do_catchsql_test("5.6.6", [[
   SELECT * FROM i;
 ]], {
   -- <5.6.6>
-  1, "SELECTs to the left and right of UNION ALL do not have the same number of result columns"
+  1, "Failed to execute SQL statement: SELECTs to the left and right of UNION ALL do not have the same number of result columns"
   -- </5.6.6>
 })
 
@@ -389,7 +389,7 @@ test:do_catchsql_test("5.6.7", [[
   SELECT * FROM i;
 ]], {
   -- <5.6.7>
-  1, "table I has 2 values for 1 columns"
+  1, "Failed to execute SQL statement: table I has 2 values for 1 columns"
   -- </5.6.7>
 })
 
@@ -501,7 +501,7 @@ test:do_catchsql_test(7.4, [[
   SELECT id FROM t;
 ]], {
   -- <7.4>
-  1, "recursive reference in a subquery: T"
+  1, "Failed to execute SQL statement: recursive reference in a subquery: T"
   -- </7.4>
 })
 
@@ -514,7 +514,7 @@ test:do_catchsql_test(7.5, [[
   SELECT id FROM t;
 ]], {
   -- <7.5>
-  1, "multiple recursive references: T"
+  1, "Failed to execute SQL statement: multiple recursive references: T"
   -- </7.5>
 })
 
@@ -527,7 +527,7 @@ test:do_catchsql_test(7.6, [[
   SELECT id FROM t;
 ]], {
   -- <7.6>
-  1, "circular reference: T"
+  1, "Failed to execute SQL statement: circular reference: T"
   -- </7.6>
 })
 
@@ -784,7 +784,7 @@ test:do_catchsql_test("10.7.1", [[
   SELECT * FROM t
 ]], {
   -- <10.7.1>
-  1, "1st ORDER BY term does not match any column in the result set"
+  1, "Failed to execute SQL statement: 1st ORDER BY term does not match any column in the result set"
   -- </10.7.1>
 })
 
@@ -1031,7 +1031,7 @@ test:do_catchsql_test(13.1, [[
   SELECT i FROM c;
 ]], {
   -- <13.1>
-  1, "no tables specified"
+  1, "Failed to execute SQL statement: no tables specified"
   -- </13.1>
 })
 
@@ -1040,7 +1040,7 @@ test:do_catchsql_test(13.2, [[
   SELECT i FROM c;
 ]], {
   -- <13.2>
-  1, "no tables specified"
+  1, "Failed to execute SQL statement: no tables specified"
   -- </13.2>
 })
 
@@ -1049,7 +1049,7 @@ test:do_catchsql_test(13.3, [[
   SELECT i FROM c;
 ]], {
   -- <13.3>
-  1, "table C has 1 values for 2 columns"
+  1, "Failed to execute SQL statement: table C has 1 values for 2 columns"
   -- </13.3>
 })
 
@@ -1078,7 +1078,7 @@ test:do_catchsql_test(16.1, [[
   SELECT * FROM i;
 ]], {
   -- <16.1>
-  1, "recursive aggregate queries not supported"
+  1, "Failed to execute SQL statement: recursive aggregate queries not supported"
   -- </16.1>
 })
 

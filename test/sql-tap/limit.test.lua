@@ -625,7 +625,7 @@ test:do_catchsql_test(
         SELECT * FROM t7 LIMIT 3
     ]], {
         -- <limit-9.5>
-        1, "LIMIT clause should come after UNION not before"
+        1, "Failed to execute SQL statement: LIMIT clause should come after UNION not before"
         -- </limit-9.5>
     })
 
@@ -672,12 +672,10 @@ test:do_test(
     "limit-10.4",
     function()
         local limit = 1.5
-        return {pcall(function()
-            return test:execsql("SELECT x FROM t1 WHERE x<10 LIMIT "..limit)
-        end)}
+        return test:catchsql("SELECT x FROM t1 WHERE x<10 LIMIT "..limit)
     end, {
         -- <limit-10.4>
-        0, "datatype mismatch"
+        1, "Failed to execute SQL statement: datatype mismatch"
         -- </limit-10.4>
     })
 
@@ -685,12 +683,10 @@ test:do_test(
     "limit-10.5",
     function()
         local limit = "'hello world'"
-        return {pcall(function()
-            return test:execsql("SELECT x FROM t1 WHERE x<10 LIMIT "..limit)
-        end)}
+        return test:catchsql("SELECT x FROM t1 WHERE x<10 LIMIT "..limit)
     end, {
         -- <limit-10.5>
-        0, "datatype mismatch"
+        1, "Failed to execute SQL statement: datatype mismatch"
         -- </limit-10.5>
     })
 
@@ -716,7 +712,7 @@ test:do_catchsql_test(
         SELECT * FROM t1 LIMIT replace(1)
     ]], {
         -- <limit-12.1>
-        1, "wrong number of arguments to function REPLACE()"
+        1, "Failed to execute SQL statement: wrong number of arguments to function REPLACE()"
         -- </limit-12.1>
     })
 
@@ -726,7 +722,7 @@ test:do_catchsql_test(
         SELECT * FROM t1 LIMIT 5 OFFSET replace(1)
     ]], {
         -- <limit-12.2>
-        1, 'wrong number of arguments to function REPLACE()'
+        1, 'Failed to execute SQL statement: wrong number of arguments to function REPLACE()'
         -- </limit-12.2>
     })
 
@@ -736,7 +732,7 @@ test:do_catchsql_test(
         SELECT * FROM t1 LIMIT x
     ]], {
         -- <limit-12.3>
-        1, "no such column: X"
+        1, "Failed to execute SQL statement: no such column: X"
         -- </limit-12.3>
     })
 
@@ -746,7 +742,7 @@ test:do_catchsql_test(
         SELECT * FROM t1 LIMIT 1 OFFSET x
     ]], {
         -- <limit-12.4>
-        1, "no such column: X"
+        1, "Failed to execute SQL statement: no such column: X"
         -- </limit-12.4>
     })
 

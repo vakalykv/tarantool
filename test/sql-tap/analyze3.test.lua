@@ -123,7 +123,7 @@ test:do_eqp_test(
         SELECT sum(y) FROM t1 WHERE x>200 AND x<300
     ]], {
         -- <analyze3-1.1.2>
-        {0, 0, 0, "SEARCH TABLE T1 USING COVERING INDEX I1 (X>? AND X<?)"}
+        0, 0, 0, "SEARCH TABLE T1 USING COVERING INDEX I1 (X>? AND X<?)"
         -- </analyze3-1.1.2>
     })
 
@@ -135,7 +135,7 @@ test:do_eqp_test(
         -- Tarantool: index is always covering, thus there is no need to scan table.
         -- <analyze3-1.1.3>
         -- 0, 0, 0, "SCAN TABLE t1"
-        {0, 0, 0, "SEARCH TABLE T1 USING COVERING INDEX I1 (X>? AND X<?)"}
+        0, 0, 0, "SEARCH TABLE T1 USING COVERING INDEX I1 (X>? AND X<?)"
         -- </analyze3-1.1.3>
     })
 
@@ -250,7 +250,7 @@ test:do_eqp_test(
         SELECT sum(y) FROM t2 WHERE x>1 AND x<2
     ]], {
         -- <analyze3-1.2.2>
-        {0, 0, 0, "SCAN TABLE T2"}
+        0, 0, 0, "SCAN TABLE T2"
         -- </analyze3-1.2.2>
     })
 
@@ -262,7 +262,7 @@ test:do_eqp_test(
     ]], {
         -- <analyze3-1.2.3>
         -- 0, 0, 0, "SCAN TABLE t2"
-        {0, 0, 0, "SCAN TABLE T2"}
+        0, 0, 0, "SCAN TABLE T2"
         -- </analyze3-1.2.3>
     })
 
@@ -371,7 +371,7 @@ test:do_eqp_test(
         SELECT sum(y) FROM t3 WHERE x>200 AND x<300
     ]], {
         -- <analyze3-1.3.2>
-        {0, 0, 0, "SEARCH TABLE T3 USING COVERING INDEX I3 (X>? AND X<?)"}
+        0, 0, 0, "SEARCH TABLE T3 USING COVERING INDEX I3 (X>? AND X<?)"
         -- </analyze3-1.3.2>
     })
 
@@ -383,7 +383,7 @@ test:do_eqp_test(
     ]], {
         -- <analyze3-1.3.3>
         -- 0, 0, 0, "SCAN TABLE t3"
-        {0, 0, 0, "SEARCH TABLE T3 USING COVERING INDEX I3 (X>? AND X<?)"}
+        0, 0, 0, "SEARCH TABLE T3 USING COVERING INDEX I3 (X>? AND X<?)"
         -- </analyze3-1.3.3>
     })
 
@@ -613,7 +613,7 @@ test:do_eqp_test(
         SELECT * FROM t1 WHERE a = 5 AND c = 13;
     ]], {
         -- <analyze3-6-3>
-        {0, 0, 0, "SEARCH TABLE T1 USING COVERING INDEX I2 (C=?)"}
+        0, 0, 0, "SEARCH TABLE T1 USING COVERING INDEX I2 (C=?)"
         -- </analyze3-6-3>
     })
 
@@ -623,7 +623,7 @@ test:do_eqp_test(
         SELECT * FROM t1 WHERE a = 5 AND b > 'w' AND c = 13;
     ]], {
         -- <analyze3-6-2>
-        {0, 0, 0, "SEARCH TABLE T1 USING COVERING INDEX I2 (C=?)"}
+        0, 0, 0, "SEARCH TABLE T1 USING COVERING INDEX I2 (C=?)"
         -- </analyze3-6-2>
     })
 

@@ -56,22 +56,20 @@ where_clauses_y = {"x = 19 AND y = 4", "x = '19' AND y = '4'",
 
 
 for test_number, where in ipairs(where_clauses_x) do
-    res = {0, 0, 0, "SEARCH TABLE T1 USING COVERING INDEX T1X (X=?)"}
     test:do_eqp_test(
         "1.1."..test_number,
         "SELECT * FROM t1 WHERE "..where.."", {
-            res
+            0, 0, 0, "SEARCH TABLE T1 USING COVERING INDEX T1X (X=?)"
         })
 
 end
 
 
 for test_number, where in ipairs(where_clauses_y) do
-    res = {0, 0, 0, "SEARCH TABLE T1 USING COVERING INDEX T1Y (Y=?)"}
     test:do_eqp_test(
         "1.2."..test_number,
         "SELECT * FROM t1 WHERE "..where.."", {
-            res
+            0, 0, 0, "SEARCH TABLE T1 USING COVERING INDEX T1Y (Y=?)"
         })
 end
 
@@ -83,7 +81,7 @@ test:do_catchsql_test(
         SELECT * FROM t1 WHERE x = substr('145', 2, 1) AND y = func(1, 2, 3);
     ]], {
         -- <2.1>
-        1, "no such function: FUNC"
+        1, "Failed to execute SQL statement: no such function: FUNC"
         -- </2.1>
     })
 
@@ -93,7 +91,7 @@ test:do_catchsql_test(
         UPDATE t1 SET y=y+1 WHERE x = substr('145', 2, 1) AND y = func(1, 2, 3)
     ]], {
         -- <2.2>
-        1, "no such function: FUNC"
+        1, "Failed to execute SQL statement: no such function: FUNC"
         -- </2.2>
     })
 
@@ -117,20 +115,18 @@ where_clause_x = {"x = det4() AND y = det19()"}
 where_clauses_y = {"x = det19() AND y = det4()"}
 
 for test_number, where in ipairs(where_clauses_y) do
-    res = {0, 0, 0, "SEARCH TABLE T1 USING COVERING INDEX T1Y (Y=?)"}
     test:do_eqp_test(
         "3.1."..test_number,
         "SELECT * FROM t1 WHERE "..where.."", {
-            res
+            0, 0, 0, "SEARCH TABLE T1 USING COVERING INDEX T1Y (Y=?)"
         })
 end
 
 for test_number, where in ipairs(where_clauses_x) do
-    res = {0, 0, 0, "SEARCH TABLE T1 USING COVERING INDEX T1X (X=?)"}
     test:do_eqp_test(
         "3.2."..test_number,
         "SELECT * FROM t1 WHERE "..where.."", {
-            res
+            0, 0, 0, "SEARCH TABLE T1 USING COVERING INDEX T1X (X=?)"
         })
 end
 

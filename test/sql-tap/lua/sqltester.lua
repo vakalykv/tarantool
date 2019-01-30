@@ -16,6 +16,8 @@ local function flatten(arr)
         for _, v in ipairs(arr) do
             if type(v) == "table" then
                 flatten(v)
+            elseif box.tuple.is(v) then
+                flatten(v:totable())
             else
                 table.insert(result, v)
             end
@@ -171,13 +173,14 @@ local function execsql_one_by_one(sql)
     local queries = sql_tokenizer.split_sql(sql)
     local last_res = nil
     for _, query in pairs(queries) do
-        last_res = box.sql.execute(query) or last_res
+        last_res = box.execute(query)
     end
     return last_res
 end
 
 local function execsql(self, sql)
     local result = execsql_one_by_one(sql)
+    if result then result = result.rows end
     if type(result) ~= 'table' then return end
 
     result = flatten(result)
@@ -196,6 +199,9 @@ local function catchsql(self, sql, expect)
         r[1] = 0
     else
         r[1] = 1
+        if type(r[2]) == 'cdata' then
+            r[2] = tostring(r[2])
+        end
     end
     return r
 end
@@ -223,11 +229,10 @@ test.do_execsql2_test = do_execsql2_test
 
 local function flattern_with_column_names(result)
     local ret = {}
-    local columns = result[0]
-    for i = 1, #result, 1 do
-        for j = 1, #columns, 1 do
-            table.insert(ret, columns[j])
-            table.insert(ret, result[i][j])
+    for i = 1, #result.rows, 1 do
+        for j = 1, #result.metadata, 1 do
+            table.insert(ret, result.metadata[j].name)
+            table.insert(ret, result.rows[i][j])
         end
     end
     return ret
@@ -403,7 +408,7 @@ test.do_eqp_test = function (self, label, sql, result)
     test:do_test(
         label,
         function()
-            return execsql_one_by_one("EXPLAIN QUERY PLAN "..sql)
+            return flatten(execsql_one_by_one("EXPLAIN QUERY PLAN "..sql).rows)
         end,
         result)
 end
@@ -424,7 +429,7 @@ box.cfg{
 }
 
 local engine = test_run and test_run:get_cfg('engine') or 'memtx'
-box.sql.execute('pragma sql_default_engine=\''..engine..'\'')
+box.execute('pragma sql_default_engine=\''..engine..'\'')
 
 function test.engine(self)
     return engine

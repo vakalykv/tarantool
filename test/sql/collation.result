@@ -9,53 +9,67 @@ engine = test_run:get_cfg('engine')
 ...
 box.sql.execute('pragma sql_default_engine=\''..engine..'\'')
 ---
+- rowcount: 0
 ...
 -- gh-3010: COLLATE after LIMIT should throw an error
 -- All of these tests should throw error "near "COLLATE": syntax error"
 box.sql.execute("SELECT 1 LIMIT 1 COLLATE BINARY;")
 ---
-- error: 'near "COLLATE": syntax error'
+- error: 'Failed to execute SQL statement: near "COLLATE": syntax error'
 ...
 box.sql.execute("SELECT 1 LIMIT 1 COLLATE BINARY OFFSET 1;")
 ---
-- error: 'near "COLLATE": syntax error'
+- error: 'Failed to execute SQL statement: near "COLLATE": syntax error'
 ...
 box.sql.execute("SELECT 1 LIMIT 1 OFFSET 1 COLLATE BINARY;")
 ---
-- error: 'near "COLLATE": syntax error'
+- error: 'Failed to execute SQL statement: near "COLLATE": syntax error'
 ...
 box.sql.execute("SELECT 1 LIMIT 1, 1 COLLATE BINARY;")
 ---
-- error: 'near "COLLATE": syntax error'
+- error: 'Failed to execute SQL statement: near "COLLATE": syntax error'
 ...
 box.sql.execute("SELECT 1 LIMIT 1 COLLATE BINARY, 1;")
 ---
-- error: 'near "COLLATE": syntax error'
+- error: 'Failed to execute SQL statement: near "COLLATE": syntax error'
 ...
 -- gh-3052: upper/lower support only default locale
 -- For tr-TR result depends on collation
 box.sql.execute([[CREATE TABLE tu (descriptor CHAR(50) PRIMARY KEY, letter CHAR(50))]]);
 ---
+- rowcount: 1
 ...
 box.internal.collation.create('TURKISH', 'ICU', 'tr-TR', {strength='primary'});
 ---
 ...
 box.sql.execute([[INSERT INTO tu VALUES ('Latin Capital Letter I U+0049','I');]])
 ---
+- rowcount: 1
 ...
 box.sql.execute([[INSERT INTO tu VALUES ('Latin Small Letter I U+0069','i');]])
 ---
+- rowcount: 1
 ...
 box.sql.execute([[INSERT INTO tu VALUES ('Latin Capital Letter I With Dot Above U+0130','İ');]])
 ---
+- rowcount: 1
 ...
 box.sql.execute([[INSERT INTO tu VALUES ('Latin Small Letter Dotless I U+0131','ı');]])
 ---
+- rowcount: 1
 ...
 -- Without collation
 box.sql.execute([[SELECT descriptor, upper(letter) AS upper,lower(letter) AS lower FROM tu;]])
 ---
-- - ['Latin Capital Letter I U+0049', 'I', 'i']
+- metadata:
+  - name: DESCRIPTOR
+    type: TEXT
+  - name: UPPER
+    type: TEXT
+  - name: LOWER
+    type: TEXT
+  rows:
+  - ['Latin Capital Letter I U+0049', 'I', 'i']
   - ['Latin Capital Letter I With Dot Above U+0130', 'İ', 'i̇']
   - ['Latin Small Letter Dotless I U+0131', 'I', 'ı']
   - ['Latin Small Letter I U+0069', 'I', 'i']
@@ -63,7 +77,15 @@ box.sql.execute([[SELECT descriptor, upper(letter) AS upper,lower(letter) AS low
 -- With collation
 box.sql.execute([[SELECT descriptor, upper(letter COLLATE "TURKISH") AS upper,lower(letter COLLATE "TURKISH") AS lower FROM tu;]])
 ---
-- - ['Latin Capital Letter I U+0049', 'I', 'ı']
+- metadata:
+  - name: DESCRIPTOR
+    type: TEXT
+  - name: UPPER
+    type: TEXT
+  - name: LOWER
+    type: TEXT
+  rows:
+  - ['Latin Capital Letter I U+0049', 'I', 'ı']
   - ['Latin Capital Letter I With Dot Above U+0130', 'İ', 'i']
   - ['Latin Small Letter Dotless I U+0131', 'I', 'ı']
   - ['Latin Small Letter I U+0069', 'İ', 'i']
@@ -77,22 +99,40 @@ box.internal.collation.create('GERMAN', 'ICU', 'de-DE', {strength='primary'});
 ...
 box.sql.execute([[INSERT INTO tu VALUES ('German Small Letter Sharp S U+00DF','ß');]])
 ---
+- rowcount: 1
 ...
 -- Without collation
 box.sql.execute([[SELECT descriptor, upper(letter), letter FROM tu where UPPER(letter) = 'SS';]])
 ---
-- - ['German Small Letter Sharp S U+00DF', 'SS', 'ß']
+- metadata:
+  - name: DESCRIPTOR
+    type: TEXT
+  - name: upper(letter)
+    type: TEXT
+  - name: LETTER
+    type: TEXT
+  rows:
+  - ['German Small Letter Sharp S U+00DF', 'SS', 'ß']
 ...
 -- With collation
 box.sql.execute([[SELECT descriptor, upper(letter COLLATE "GERMAN"), letter FROM tu where UPPER(letter COLLATE "GERMAN") = 'SS';]])
 ---
-- - ['German Small Letter Sharp S U+00DF', 'SS', 'ß']
+- metadata:
+  - name: DESCRIPTOR
+    type: TEXT
+  - name: upper(letter COLLATE "GERMAN")
+    type: TEXT
+  - name: LETTER
+    type: TEXT
+  rows:
+  - ['German Small Letter Sharp S U+00DF', 'SS', 'ß']
 ...
 box.internal.collation.drop('GERMAN')
 ---
 ...
 box.sql.execute(([[DROP TABLE tu]]))
 ---
+- rowcount: 1
 ...
 box.schema.user.grant('guest','read,write,execute', 'universe')
 ---
@@ -111,6 +151,7 @@ cn:close()
 --
 box.sql.execute("CREATE TABLE t (id INT PRIMARY KEY, a TEXT, b TEXT COLLATE \"binary\");")
 ---
+- rowcount: 1
 ...
 box.space.T:format()[2]['collation']
 ---
@@ -122,6 +163,7 @@ box.space.T:format()[3]['collation']
 ...
 box.sql.execute("DROP TABLE t;")
 ---
+- rowcount: 1
 ...
 -- BINARY collation works in the same way as there is no collation
 -- at all.
@@ -181,14 +223,33 @@ box.space._collation:delete{0}
 --
 box.sql.execute("CREATE TABLE t (id INT PRIMARY KEY, a TEXT, b TEXT COLLATE \"binary\", c TEXT COLLATE \"unicode_ci\");")
 ---
+- rowcount: 1
 ...
 box.sql.execute("SELECT * FROM t WHERE a = b;")
 ---
-- []
+- metadata:
+  - name: ID
+    type: INTEGER
+  - name: A
+    type: TEXT
+  - name: B
+    type: TEXT
+  - name: C
+    type: TEXT
+  rows: []
 ...
 box.sql.execute("SELECT * FROM t WHERE a COLLATE \"binary\" = b;")
 ---
-- []
+- metadata:
+  - name: ID
+    type: INTEGER
+  - name: A
+    type: TEXT
+  - name: B
+    type: TEXT
+  - name: C
+    type: TEXT
+  rows: []
 ...
 box.sql.execute("SELECT * FROM t WHERE b = c;")
 ---
@@ -196,11 +257,29 @@ box.sql.execute("SELECT * FROM t WHERE b = c;")
 ...
 box.sql.execute("SELECT * FROM t WHERE b COLLATE \"binary\" = c;")
 ---
-- []
+- metadata:
+  - name: ID
+    type: INTEGER
+  - name: A
+    type: TEXT
+  - name: B
+    type: TEXT
+  - name: C
+    type: TEXT
+  rows: []
 ...
 box.sql.execute("SELECT * FROM t WHERE a = c;")
 ---
-- []
+- metadata:
+  - name: ID
+    type: INTEGER
+  - name: A
+    type: TEXT
+  - name: B
+    type: TEXT
+  - name: C
+    type: TEXT
+  rows: []
 ...
 box.sql.execute("SELECT * FROM t WHERE a COLLATE \"binary\" = c COLLATE \"unicode\";")
 ---
@@ -223,22 +302,35 @@ box.sql.execute("SELECT c FROM t UNION SELECT b FROM t;")
 ...
 box.sql.execute("SELECT b FROM t UNION SELECT a FROM t;")
 ---
-- []
+- metadata:
+  - name: B
+    type: TEXT
+  rows: []
 ...
 box.sql.execute("SELECT a FROM t UNION SELECT c FROM t;")
 ---
-- []
+- metadata:
+  - name: A
+    type: TEXT
+  rows: []
 ...
 box.sql.execute("SELECT c COLLATE \"binary\" FROM t UNION SELECT a FROM t;")
 ---
-- []
+- metadata:
+  - name: c COLLATE "binary"
+    type: TEXT
+  rows: []
 ...
 box.sql.execute("SELECT b COLLATE \"unicode\" FROM t UNION SELECT a FROM t;")
 ---
-- []
+- metadata:
+  - name: b COLLATE "unicode"
+    type: TEXT
+  rows: []
 ...
 box.sql.execute("DROP TABLE t;")
 ---
+- rowcount: 1
 ...
 box.schema.user.revoke('guest', 'read,write,execute', 'universe')
 ---
@@ -265,63 +357,100 @@ box.schema.user.drop('tmp')
 -- Check that foreign key update doesn't fail with "unicode_ci".
 box.sql.execute('CREATE TABLE t0 (s1 CHAR(5) COLLATE "unicode_ci" UNIQUE, id INT PRIMARY KEY AUTOINCREMENT);')
 ---
+- rowcount: 1
 ...
 box.sql.execute('CREATE TABLE t1 (s1 INT PRIMARY KEY, s0 CHAR(5) COLLATE "unicode_ci" REFERENCES t0(s1));')
 ---
+- rowcount: 1
 ...
 box.sql.execute("INSERT INTO t0(s1) VALUES ('a');")
 ---
+- autoincrement_ids:
+  - 1
+  rowcount: 1
 ...
 box.sql.execute("INSERT INTO t1 VALUES (1,'a');")
 ---
+- rowcount: 1
 ...
 -- Should't fail.
 box.sql.execute("UPDATE t0 SET s1 = 'A';")
 ---
+- rowcount: 1
 ...
 box.sql.execute("SELECT s1 FROM t0;")
 ---
-- - ['A']
+- metadata:
+  - name: S1
+    type: TEXT
+  rows:
+  - ['A']
 ...
 box.sql.execute("SELECT * FROM t1;")
 ---
-- - [1, 'a']
+- metadata:
+  - name: S1
+    type: INTEGER
+  - name: S0
+    type: TEXT
+  rows:
+  - [1, 'a']
 ...
 box.sql.execute("DROP TABLE t1;")
 ---
+- rowcount: 1
 ...
 box.sql.execute("DROP TABLE t0;")
 ---
+- rowcount: 1
 ...
 -- Check that foreign key update fails with default collation.
 box.sql.execute('CREATE TABLE t0 (s1 CHAR(5) UNIQUE, id INT PRIMARY KEY AUTOINCREMENT);')
 ---
+- rowcount: 1
 ...
 box.sql.execute('CREATE TABLE t1 (s1 INT PRIMARY KEY, s0 CHAR(5) REFERENCES t0(s1));')
 ---
+- rowcount: 1
 ...
 box.sql.execute("INSERT INTO t0(s1) VALUES ('a');")
 ---
+- autoincrement_ids:
+  - 1
+  rowcount: 1
 ...
 box.sql.execute("INSERT INTO t1 VALUES (1,'a');")
 ---
+- rowcount: 1
 ...
 -- Should fail.
 box.sql.execute("UPDATE t0 SET s1 = 'A';")
 ---
-- error: FOREIGN KEY constraint failed
+- error: 'Failed to execute SQL statement: FOREIGN KEY constraint failed'
 ...
 box.sql.execute("SELECT * FROM t1;")
 ---
-- - [1, 'a']
+- metadata:
+  - name: S1
+    type: INTEGER
+  - name: S0
+    type: TEXT
+  rows:
+  - [1, 'a']
 ...
 box.sql.execute("SELECT s1 FROM t0;")
 ---
-- - ['a']
+- metadata:
+  - name: S1
+    type: TEXT
+  rows:
+  - ['a']
 ...
 box.sql.execute("DROP TABLE t1;")
 ---
+- rowcount: 1
 ...
 box.sql.execute("DROP TABLE t0;")
 ---
+- rowcount: 1
 ...

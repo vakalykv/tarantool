@@ -271,7 +271,7 @@ test:do_catchsql_test(
         UPDATE t3 SET a=0 WHEREwww b=2;
     ]], {
         -- <misc1-5.1>
-        1, [[near "WHEREwww": syntax error]]
+        1, [[Failed to execute SQL statement: near "WHEREwww": syntax error]]
         -- </misc1-5.1>
     })
 
@@ -348,7 +348,7 @@ test:do_catchsql_test(
         );
     ]], {
         -- <misc1-7.1>
-        1, [[table "ERROR1" has more than one primary key]]
+        1, [[Failed to execute SQL statement: table "ERROR1" has more than one primary key]]
         -- </misc1-7.1>
     })
 
@@ -361,7 +361,7 @@ test:do_catchsql_test(
         );
     ]], {
         -- <misc1-7.2>
-        1, [[table "ERROR1" has more than one primary key]]
+        1, [[Failed to execute SQL statement: table "ERROR1" has more than one primary key]]
         -- </misc1-7.2>
     })
 
@@ -413,7 +413,7 @@ test:do_catchsql_test(
         SELECT *;
     ]], {
         -- <misc1-8.1>
-        1, "no tables specified"
+        1, "Failed to execute SQL statement: no tables specified"
         -- </misc1-8.1>
     })
 
@@ -423,7 +423,7 @@ test:do_catchsql_test(
         SELECT t1.*;
     ]], {
         -- <misc1-8.2>
-        1, "no such table: T1"
+        1, "Failed to execute SQL statement: no such table: T1"
         -- </misc1-8.2>
     })
 
@@ -887,7 +887,7 @@ test:do_catchsql_test(
         CREATE TABLE test(a integer, primary key(a));
     ]], {
         -- <misc1-16.2>
-        1, "table TEST already exists"
+        1, "Failed to execute SQL statement: table TEST already exists"
         -- </misc1-16.2>
     })
 
@@ -897,7 +897,7 @@ test:do_catchsql_test(
         CREATE TABLE test2(a text primary key, b text, primary key(a,b));
     ]], {
         -- <misc1-16.3>
-        1, [[table "TEST2" has more than one primary key]]
+        1, [[Failed to execute SQL statement: table "TEST2" has more than one primary key]]
         -- </misc1-16.3>
     })
 
@@ -1037,7 +1037,7 @@ test:do_catchsql_test(
         select''like''like''like#0;
     ]], {
         -- <misc1-21.1>
-        1, [[near "#0": syntax error]]
+        1, [[Failed to execute SQL statement: near "#0": syntax error]]
         -- </misc1-21.1>
     })
 
@@ -1047,7 +1047,7 @@ test:do_catchsql_test(
         VALUES(0,0x0MATCH#0;
     ]], {
         -- <misc1-21.2>
-        1, [[near ";": syntax error]]
+        1, [[Failed to execute SQL statement: near ";": syntax error]]
         -- </misc1-21.2>
     })
 

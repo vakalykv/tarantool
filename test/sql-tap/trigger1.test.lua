@@ -72,7 +72,7 @@ test:do_catchsql_test(
         END;
     ]], {
         -- <trigger1-1.1.3>
-        1, [[near "STATEMENT": syntax error]]
+        1, [[Failed to execute SQL statement: near "STATEMENT": syntax error]]
         -- </trigger1-1.1.3>
     })
 
@@ -212,7 +212,6 @@ test:do_execsql_test(
         end;
         delete from t1 where a=1 OR a=3;
         select * from t1;
-        drop table t1;
     ]], {
         -- <trigger1-1.10>
         2, "b", 4, "d"
@@ -222,6 +221,7 @@ test:do_execsql_test(
 test:do_execsql_test(
     "trigger1-1.11",
     [[
+        drop table if exists t1;
         create table t1(a int PRIMARY KEY,b TEXT);
         create table tt1(a int PRIMARY KEY);
         insert into t1 values(1,'a');
@@ -234,7 +234,6 @@ test:do_execsql_test(
         end;
         update t1 set b='x-' || b where a=1 OR a=3;
         select * from t1;
-        drop table t1;
     ]], {
         -- <trigger1-1.11>
         1, "x-a", 2, "b", 4, "d"
@@ -245,6 +244,7 @@ test:do_execsql_test(
 test:do_catchsql_test(
     "trigger1-1.12",
     [[
+        drop table if exists t1;
         create table t1(a int PRIMARY KEY,b TEXT);
         create trigger t1t instead of update on t1 for each row begin
           delete from t1 WHERE a=old.a+2;
@@ -297,7 +297,7 @@ test:do_catchsql_test(
         END;
     ]], {
         -- <trigger1-2.1>
-        1, [[near ";": syntax error]]
+        1, [[Failed to execute SQL statement: near ";": syntax error]]
         -- </trigger1-2.1>
     })
 
@@ -310,7 +310,7 @@ test:do_catchsql_test(
         END;
     ]], {
         -- <trigger1-2.2>
-        1, [[near ";": syntax error]]
+        1, [[Failed to execute SQL statement: near ";": syntax error]]
         -- </trigger1-2.2>
     })
 
@@ -495,7 +495,7 @@ test:do_catchsql_test(
         DELETE FROM t2
     ]], {
         -- <trigger1-6.3>
-        1, "deletes are not permitted"
+        1, "Failed to execute SQL statement: deletes are not permitted"
         -- </trigger1-6.3>
     })
 
@@ -730,7 +730,7 @@ test:do_catchsql_test(
         SELECT raise(abort,'message');
     ]], {
         -- <trigger1-11.1>
-        1, "RAISE() may only be used within a trigger-program"
+        1, "Failed to execute SQL statement: RAISE() may only be used within a trigger-program"
         -- </trigger1-11.1>
     })
 
@@ -809,7 +809,7 @@ test:do_catchsql_test(
         END;
     ]], {
         -- <trigger1-16.4>
-        1, "the NOT INDEXED clause is not allowed on UPDATE or DELETE statements within triggers"
+        1, "Failed to execute SQL statement: the NOT INDEXED clause is not allowed on UPDATE or DELETE statements within triggers"
         -- </trigger1-16.4>
     })
 
@@ -821,7 +821,7 @@ test:do_catchsql_test(
         END;
     ]], {
         -- <trigger1-16.5>
-        1, "the INDEXED BY clause is not allowed on UPDATE or DELETE statements within triggers"
+        1, "Failed to execute SQL statement: the INDEXED BY clause is not allowed on UPDATE or DELETE statements within triggers"
         -- </trigger1-16.5>
     })
 
@@ -833,7 +833,7 @@ test:do_catchsql_test(
         END;
     ]], {
         -- <trigger1-16.6>
-        1, "the NOT INDEXED clause is not allowed on UPDATE or DELETE statements within triggers"
+        1, "Failed to execute SQL statement: the NOT INDEXED clause is not allowed on UPDATE or DELETE statements within triggers"
         -- </trigger1-16.6>
     })
 
@@ -845,7 +845,7 @@ test:do_catchsql_test(
         END;
     ]], {
         -- <trigger1-16.7>
-        1, "the INDEXED BY clause is not allowed on UPDATE or DELETE statements within triggers"
+        1, "Failed to execute SQL statement: the INDEXED BY clause is not allowed on UPDATE or DELETE statements within triggers"
         -- </trigger1-16.7>
     })
 

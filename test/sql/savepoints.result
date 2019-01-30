@@ -6,6 +6,7 @@ engine = test_run:get_cfg('engine')
 ...
 box.sql.execute('pragma sql_default_engine=\''..engine..'\'')
 ---
+- rowcount: 0
 ...
 -- These tests check that SQL savepoints properly work outside
 -- transactions as well as inside transactions started in Lua.
@@ -66,7 +67,7 @@ end;
 ...
 release_sv_fail();
 ---
-- error: 'no such savepoint: T1'
+- error: 'Failed to execute SQL statement: no such savepoint: T1'
 ...
 box.commit();
 ---

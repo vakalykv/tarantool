@@ -480,7 +480,7 @@ test:do_catchsql_test(
         SELECT * FROM t1 NATURAL RIGHT OUTER JOIN t2;
     ]], {
         -- <join-2.3>
-        1, "RIGHT and FULL OUTER JOINs are not currently supported"
+        1, "Failed to execute SQL statement: RIGHT and FULL OUTER JOINs are not currently supported"
         -- </join-2.3>
     })
 
@@ -520,7 +520,7 @@ test:do_catchsql_test(
         SELECT * FROM t1 NATURAL JOIN t2 ON t1.a=t2.b;
     ]], {
         -- <join-3.1>
-        1, "a NATURAL join may not have an ON or USING clause"
+        1, "Failed to execute SQL statement: a NATURAL join may not have an ON or USING clause"
         -- </join-3.1>
     })
 
@@ -530,7 +530,7 @@ test:do_catchsql_test(
         SELECT * FROM t1 NATURAL JOIN t2 USING(b);
     ]], {
         -- <join-3.2>
-        1, "a NATURAL join may not have an ON or USING clause"
+        1, "Failed to execute SQL statement: a NATURAL join may not have an ON or USING clause"
         -- </join-3.2>
     })
 
@@ -540,7 +540,7 @@ test:do_catchsql_test(
         SELECT * FROM t1 JOIN t2 ON t1.a=t2.b USING(b);
     ]], {
         -- <join-3.3>
-        1, "cannot have both ON and USING clauses in the same join"
+        1, "Failed to execute SQL statement: cannot have both ON and USING clauses in the same join"
         -- </join-3.3>
     })
 
@@ -550,7 +550,7 @@ test:do_catchsql_test(
         SELECT * FROM t1 JOIN t2 USING(a);
     ]], {
         -- <join-3.4.1>
-        1, "cannot join using column A - column not present in both tables"
+        1, "Failed to execute SQL statement: cannot join using column A - column not present in both tables"
         -- </join-3.4.1>
     })
 
@@ -560,7 +560,7 @@ test:do_catchsql_test(
         SELECT * FROM t1 JOIN t2 USING(d);
     ]], {
         -- <join-3.4.2>
-        1, "cannot join using column D - column not present in both tables"
+        1, "Failed to execute SQL statement: cannot join using column D - column not present in both tables"
         -- </join-3.4.2>
     })
 
@@ -570,7 +570,7 @@ test:do_catchsql_test(
         SELECT * FROM t1 USING(a) 
     ]], {
         -- <join-3.5>
-        1, "a JOIN clause is required before USING"
+        1, "Failed to execute SQL statement: a JOIN clause is required before USING"
         -- </join-3.5>
     })
 
@@ -580,7 +580,7 @@ test:do_catchsql_test(
         SELECT * FROM t1 JOIN t2 ON t3.a=t2.b;
     ]], {
         -- <join-3.6>
-        1, "no such column: T3.A"
+        1, "Failed to execute SQL statement: no such column: T3.A"
         -- </join-3.6>
     })
 
@@ -590,7 +590,7 @@ test:do_catchsql_test(
         SELECT * FROM t1 INNER OUTER JOIN t2;
     ]], {
         -- <join-3.7>
-        1, "unknown or unsupported join type: INNER OUTER"
+        1, "Failed to execute SQL statement: unknown or unsupported join type: INNER OUTER"
         -- </join-3.7>
     })
 
@@ -600,7 +600,7 @@ test:do_catchsql_test(
         SELECT * FROM t1 INNER OUTER CROSS JOIN t2;
     ]], {
         -- <join-3.8>
-        1, "unknown or unsupported join type: INNER OUTER CROSS"
+        1, "Failed to execute SQL statement: unknown or unsupported join type: INNER OUTER CROSS"
         -- </join-3.8>
     })
 
@@ -610,7 +610,7 @@ test:do_catchsql_test(
         SELECT * FROM t1 OUTER NATURAL INNER JOIN t2;
     ]], {
         -- <join-3.9>
-        1, "unknown or unsupported join type: OUTER NATURAL INNER"
+        1, "Failed to execute SQL statement: unknown or unsupported join type: OUTER NATURAL INNER"
         -- </join-3.9>
     })
 
@@ -620,7 +620,7 @@ test:do_catchsql_test(
         SELECT * FROM t1 LEFT BOGUS JOIN t2;
     ]], {
         -- <join-3.10>
-        1, "unknown or unsupported join type: LEFT BOGUS"
+        1, "Failed to execute SQL statement: unknown or unsupported join type: LEFT BOGUS"
         -- </join-3.10>
     })
 
@@ -630,7 +630,7 @@ test:do_catchsql_test(
         SELECT * FROM t1 INNER BOGUS CROSS JOIN t2;
     ]], {
         -- <join-3.11>
-        1, "unknown or unsupported join type: INNER BOGUS CROSS"
+        1, "Failed to execute SQL statement: unknown or unsupported join type: INNER BOGUS CROSS"
         -- </join-3.11>
     })
 
@@ -640,7 +640,7 @@ test:do_catchsql_test(
         SELECT * FROM t1 NATURAL AWK SED JOIN t2;
     ]], {
         -- <join-3.12>
-        1, "unknown or unsupported join type: NATURAL AWK SED"
+        1, "Failed to execute SQL statement: unknown or unsupported join type: NATURAL AWK SED"
         -- </join-3.12>
     })
 
@@ -1067,11 +1067,11 @@ end
 jointest("join-12.2", 30, {0, {1}})
 jointest("join-12.3", 63, {0, {1}})
 jointest("join-12.4", 64, {0, {1}})
-jointest("join-12.5", 65, {1, 'at most 64 tables in a join'})
-jointest("join-12.6", 66, {1, 'at most 64 tables in a join'})
-jointest("join-12.7", 127, {1, 'at most 64 tables in a join'})
-jointest("join-12.8", 128, {1, 'at most 64 tables in a join'})
-jointest("join-12.9", 1000, {1, 'at most 64 tables in a join'})
+jointest("join-12.5", 65, {1, 'Failed to execute SQL statement: at most 64 tables in a join'})
+jointest("join-12.6", 66, {1, 'Failed to execute SQL statement: at most 64 tables in a join'})
+jointest("join-12.7", 127, {1, 'Failed to execute SQL statement: at most 64 tables in a join'})
+jointest("join-12.8", 128, {1, 'Failed to execute SQL statement: at most 64 tables in a join'})
+jointest("join-12.9", 1000, {1, 'Failed to execute SQL statement: at most 64 tables in a join'})
 -- If SQLite is built with SQLITE_MEMDEBUG, then the huge number of realloc()
 -- calls made by the following test cases are too time consuming to run.
 -- Without SQLITE_MEMDEBUG, realloc() is fast enough that these are not
@@ -1079,10 +1079,10 @@ jointest("join-12.9", 1000, {1, 'at most 64 tables in a join'})
 --if X(0, "X!capable", [["pragma&&compileoption_diags"]]) then
 --    if X(703, "X!cmd", [=[["expr","[lsearch [db eval {PRAGMA compile_options}] MEMDEBUG]<0"]]=])
 -- then
-jointest("join-12.10", 65534, {1, 'at most 64 tables in a join'})
-jointest("join-12.11", 65535, {1, 'at most 64 tables in a join'})
-jointest("join-12.12", 65536, {1, 'at most 64 tables in a join'})
-jointest("join-12.13", 65537, {1, 'at most 64 tables in a join'})
+jointest("join-12.10", 65534, {1, 'Failed to execute SQL statement: at most 64 tables in a join'})
+jointest("join-12.11", 65535, {1, 'Failed to execute SQL statement: at most 64 tables in a join'})
+jointest("join-12.12", 65536, {1, 'Failed to execute SQL statement: at most 64 tables in a join'})
+jointest("join-12.13", 65537, {1, 'Failed to execute SQL statement: at most 64 tables in a join'})
 --    end
 --end
 

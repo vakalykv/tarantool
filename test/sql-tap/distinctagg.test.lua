@@ -75,7 +75,7 @@ test:do_catchsql_test(
         SELECT count(distinct) FROM t1;
     ]], {
         -- <distinctagg-2.1>
-        1, "DISTINCT aggregates must have exactly one argument"
+        1, "Failed to execute SQL statement: DISTINCT aggregates must have exactly one argument"
         -- </distinctagg-2.1>
     })
 
@@ -85,7 +85,7 @@ test:do_catchsql_test(
         SELECT group_concat(distinct a,b) FROM t1;
     ]], {
         -- <distinctagg-2.2>
-        1, "DISTINCT aggregates must have exactly one argument"
+        1, "Failed to execute SQL statement: DISTINCT aggregates must have exactly one argument"
         -- </distinctagg-2.2>
     })
 

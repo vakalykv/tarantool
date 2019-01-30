@@ -177,7 +177,7 @@ test:do_catchsql_test(
 		ANALYZE v;
 	]], {
 		-- <analyzeD-1.12>
-		1, "VIEW isn't allowed to be analyzed"
+		1, "Failed to execute SQL statement: VIEW isn't allowed to be analyzed"
 		-- <analyzeD-1.12>
 	})
 

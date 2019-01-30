@@ -38,7 +38,7 @@ local testcases = {
 		{0,{1,1}}},
 	{"5",
 		[[rollback to savepoint s1_2;]],
-		{1, "no such savepoint: S1_2"}},
+		{1, "Failed to execute SQL statement: no such savepoint: S1_2"}},
 	{"6",
 		[[insert into t1 values(2);
 		select * from t1 union all select * from t2;]],

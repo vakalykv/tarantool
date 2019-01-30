@@ -18,7 +18,7 @@ test:do_catchsql_test(
     "index-info-1.1",
     "PRAGMA index_xinfo (t1.a);",
     {
-        1, "no such pragma: INDEX_XINFO",
+        1, "Failed to execute SQL statement: no such pragma: INDEX_XINFO",
     })
 
 -- Case: old index_info syntax is banned.
@@ -26,7 +26,7 @@ test:do_catchsql_test(
     "index-info-1.2",
     "PRAGMA index_info = t1.a;",
     {
-        1, "near \".\": syntax error",
+        1, "Failed to execute SQL statement: near \".\": syntax error",
     })
 
 -- Case: single column index with an integer column.

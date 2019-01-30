@@ -85,7 +85,7 @@ test:do_test(
         return test:catchsql(sql)
     end, {
         -- <join3-3.1>
-        1, "at most "..bitmask_size.." tables in a join"
+        1, "Failed to execute SQL statement: at most "..bitmask_size.." tables in a join"
         -- </join3-3.1>
     })
 

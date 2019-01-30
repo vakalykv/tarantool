@@ -128,7 +128,7 @@ test:do_catchsql_test(
         SELECT count(DISTINCT *) FROM t2
     ]], {
         -- <count-2.2>
-        1, [[near "*": syntax error]]
+        1, [[Failed to execute SQL statement: near "*": syntax error]]
         -- </count-2.2>
     })
 
@@ -156,7 +156,7 @@ test:do_catchsql_test(
         SELECT count(DISTINCT) FROM t2
     ]], {
         -- <count-2.6>
-        1, "DISTINCT aggregates must have exactly one argument"
+        1, "Failed to execute SQL statement: DISTINCT aggregates must have exactly one argument"
         -- </count-2.6>
     })
 
@@ -290,7 +290,7 @@ test:do_catchsql_test(
         SELECT count(DISTINCT) FROM t6 GROUP BY x;
     ]], {
         -- <count-6.1>
-        1, "DISTINCT aggregates must have exactly one argument"
+        1, "Failed to execute SQL statement: DISTINCT aggregates must have exactly one argument"
         -- </count-6.1>
     })
 

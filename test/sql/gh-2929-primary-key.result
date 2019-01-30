@@ -6,6 +6,7 @@ engine = test_run:get_cfg('engine')
 ...
 box.sql.execute('pragma sql_default_engine=\''..engine..'\'')
 ---
+- rowcount: 0
 ...
 -- All tables in SQL are now WITHOUT ROW ID, so if user
 -- tries to create table without a primary key, an appropriate error message
@@ -15,30 +16,32 @@ box.cfg{}
 ...
 box.sql.execute("CREATE TABLE t1(a INT PRIMARY KEY, b INT UNIQUE)")
 ---
+- rowcount: 1
 ...
 box.sql.execute("CREATE TABLE t2(a INT UNIQUE, b INT)")
 ---
-- error: PRIMARY KEY missing on table T2
+- error: 'Failed to execute SQL statement: PRIMARY KEY missing on table T2'
 ...
 box.sql.execute("CREATE TABLE t3(a NUM)")
 ---
-- error: PRIMARY KEY missing on table T3
+- error: 'Failed to execute SQL statement: PRIMARY KEY missing on table T3'
 ...
 box.sql.execute("CREATE TABLE t4(a DECIMAL, b TEXT)")
 ---
-- error: PRIMARY KEY missing on table T4
+- error: 'Failed to execute SQL statement: PRIMARY KEY missing on table T4'
 ...
 box.sql.execute("CREATE TABLE t5(a DECIMAL, b NUM UNIQUE)")
 ---
-- error: PRIMARY KEY missing on table T5
+- error: 'Failed to execute SQL statement: PRIMARY KEY missing on table T5'
 ...
 box.sql.execute("DROP TABLE t1")
 ---
+- rowcount: 1
 ...
 --
 -- gh-3522: invalid primary key name
 --
 box.sql.execute("CREATE TABLE tx (a INT, PRIMARY KEY (b));")
 ---
-- error: 'no such column: B'
+- error: 'Failed to execute SQL statement: no such column: B'
 ...

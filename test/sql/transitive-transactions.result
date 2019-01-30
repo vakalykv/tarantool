@@ -6,6 +6,7 @@ engine = test_run:get_cfg('engine')
 ...
 box.sql.execute("pragma sql_default_engine=\'"..engine.."\'")
 ---
+- rowcount: 0
 ...
 test_run:cmd("setopt delimiter ';'")
 ---
@@ -29,9 +30,11 @@ box.sql.execute('START TRANSACTION;') box.rollback();
 ...
 box.sql.execute('CREATE TABLE parent(id INT PRIMARY KEY, y INT UNIQUE);');
 ---
+- rowcount: 1
 ...
 box.sql.execute('CREATE TABLE child(id INT PRIMARY KEY, x INT REFERENCES parent(y) DEFERRABLE INITIALLY DEFERRED);');
 ---
+- rowcount: 1
 ...
 fk_violation_1 = function()
     box.begin()
@@ -97,7 +100,7 @@ end;
 ...
 fk_defer();
 ---
-- error: FOREIGN KEY constraint failed
+- error: 'Failed to execute SQL statement: FOREIGN KEY constraint failed'
 ...
 box.space.CHILD:select();
 ---
@@ -129,4 +132,5 @@ box.sql.execute('DROP TABLE child;');
 ...
 box.sql.execute('DROP TABLE parent;');
 ---
+- rowcount: 1
 ...

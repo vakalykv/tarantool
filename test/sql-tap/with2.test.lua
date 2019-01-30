@@ -215,7 +215,7 @@ test:do_catchsql_test(1.16, [[
     SELECT * FROM t4;
 ]], {
     -- <1.16>
-    1, "multiple references to recursive table: T4"
+    1, "Failed to execute SQL statement: multiple references to recursive table: T4"
     -- </1.16>
 })
 
@@ -258,7 +258,7 @@ test:do_catchsql_test(3.1, [[
     SELECT * FROM i;
 ]], {
     -- <3.1>
-    1, "circular reference: I"
+    1, "Failed to execute SQL statement: circular reference: I"
     -- </3.1>
 })
 
@@ -270,7 +270,7 @@ test:do_catchsql_test(3.2, [[
     SELECT * FROM i;
 ]], {
     -- <3.2>
-    1, "circular reference: I"
+    1, "Failed to execute SQL statement: circular reference: I"
     -- </3.2>
 })
 
@@ -281,7 +281,7 @@ test:do_catchsql_test(3.3, [[
     SELECT * FROM i;
 ]], {
     -- <3.3>
-    1, "circular reference: I"
+    1, "Failed to execute SQL statement: circular reference: I"
     -- </3.3>
 })
 
@@ -292,7 +292,7 @@ test:do_catchsql_test(3.4, [[
     SELECT * FROM j;
 ]], {
     -- <3.4>
-    1, "circular reference: J"
+    1, "Failed to execute SQL statement: circular reference: J"
     -- </3.4>
 })
 
@@ -305,7 +305,7 @@ test:do_catchsql_test(3.5, [[
     SELECT * FROM i;
 ]], {
     -- <3.5>
-    1, "circular reference: I"
+    1, "Failed to execute SQL statement: circular reference: I"
     -- </3.5>
 })
 
@@ -317,7 +317,7 @@ test:do_catchsql_test(4.1, [[
     SELECT * FROM x;
 ]], {
     -- <4.1>
-    1, [[near ")": syntax error]]
+    1, [[Failed to execute SQL statement: near ")": syntax error]]
     -- </4.1>
 })
 
@@ -519,7 +519,7 @@ test:do_catchsql_test(6.2, [[
     INSERT INTO t2 VALUES(1, 2,);
 ]], {
     -- <6.2>
-    1, [[near ")": syntax error]]
+    1, [[Failed to execute SQL statement: near ")": syntax error]]
     -- </6.2>
 })
 
@@ -528,7 +528,7 @@ test:do_catchsql_test("6.3.1", [[
     INSERT INTO t2 SELECT a, b, FROM t1;
 ]], {
     -- <6.3>
-    1, [[keyword "FROM" is reserved]]
+    1, [[Failed to execute SQL statement: keyword "FROM" is reserved]]
     -- </6.3>
 })
 
@@ -537,7 +537,7 @@ test:do_catchsql_test("6.3.2", [[
     INSERT INTO t2 SELECT a, b FROM abc;
 ]], {
     -- <6.3>
-    1, "no such table: ABC"
+    1, "Failed to execute SQL statement: no such table: ABC"
     -- </6.3>
 })
 
@@ -546,7 +546,7 @@ test:do_catchsql_test(6.4, [[
     INSERT INTO t2 SELECT a, b, FROM t1 a a a;
 ]], {
     -- <6.4>
-    1, [[keyword "FROM" is reserved]]
+    1, [[Failed to execute SQL statement: keyword "FROM" is reserved]]
     -- </6.4>
 })
 
@@ -555,7 +555,7 @@ test:do_catchsql_test(6.5, [[
     DELETE FROM t2 WHERE;
 ]], {
     -- <6.5>
-    1, [[near ";": syntax error]]
+    1, [[Failed to execute SQL statement: near ";": syntax error]]
     -- </6.5>
 })
 
@@ -563,7 +563,7 @@ test:do_catchsql_test(6.6, [[
     WITH x AS (SELECT * FROM t1) DELETE FROM t2 WHERE
 ]], {
     -- <6.6>
-    1, '/near .* syntax error/'
+    1, '/Failed to execute SQL statement: near .* syntax error/'
     -- </6.6>
 })
 
@@ -571,7 +571,7 @@ test:do_catchsql_test(6.7, [[
     WITH x AS (SELECT * FROM t1) DELETE FROM t2 WHRE 1;
 ]], {
     -- <6.7>
-    1, '/near .* syntax error/'
+    1, '/Failed to execute SQL statement: near .* syntax error/'
     -- </6.7>
 })
 
@@ -579,7 +579,7 @@ test:do_catchsql_test(6.8, [[
     WITH x AS (SELECT * FROM t1) UPDATE t2 SET a = 10, b = ;
 ]], {
     -- <6.8>
-    1, '/near .* syntax error/'
+    1, '/Failed to execute SQL statement: near .* syntax error/'
     -- </6.8>
 })
 
@@ -587,7 +587,7 @@ test:do_catchsql_test(6.9, [[
     WITH x AS (SELECT * FROM t1) UPDATE t2 SET a = 10, b = 1 WHERE a===b;
 ]], {
     -- <6.9>
-    1, '/near .* syntax error/'
+    1, '/Failed to execute SQL statement: near .* syntax error/'
     -- </6.9>
 })
 
@@ -600,7 +600,7 @@ test:do_catchsql_test("6.10", [[
     SELECT * FROM x
 ]], {
     -- <6.10>
-    1, "no such column: C"
+    1, "Failed to execute SQL statement: no such column: C"
     -- </6.10>
 })
 

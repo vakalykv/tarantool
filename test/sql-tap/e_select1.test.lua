@@ -95,7 +95,7 @@ test:do_catchsql_test(
         SELECT count(*) FROM t1, t2 ON (t1.a=t2.a) USING (a)
     ]], {
         -- <e_select-0.1.4>
-        1, "cannot have both ON and USING clauses in the same join"
+        1, "Failed to execute SQL statement: cannot have both ON and USING clauses in the same join"
         -- </e_select-0.1.4>
     })
 
@@ -105,7 +105,7 @@ test:do_catchsql_test(
         SELECT count(*) FROM t1, t2 USING (a) ON (t1.a=t2.a)
     ]], {
         -- <e_select-0.1.5>
-        1, [[keyword "ON" is reserved]]
+        1, [[Failed to execute SQL statement: keyword "ON" is reserved]]
         -- </e_select-0.1.5>
     })
 
@@ -645,7 +645,7 @@ for tn, sql in ipairs(data) do
 string.format([[
             %s
         ]], sql), {
-            1, "a NATURAL join may not have an ON or USING clause"
+            1, "Failed to execute SQL statement: a NATURAL join may not have an ON or USING clause"
         })
 
 end
@@ -807,14 +807,14 @@ test:do_select_tests(
 -- FROM clause.
 --
 data = {
-    {"1.1", "SELECT a, b, c FROM z1 WHERE *",  'near \"*\": syntax error'},
-    {"1.2", "SELECT a, b, c FROM z1 GROUP BY *", 'near \"*\": syntax error'},
-    {"1.3", "SELECT 1 + * FROM z1",  'near \"*\": syntax error'},
-    {"1.4", "SELECT * + 1 FROM z1", 'near \"+\": syntax error'},
-    {"2.1", "SELECT *", 'no tables specified'},
-    {"2.2", "SELECT * WHERE 1", 'no tables specified'},
-    {"2.3", "SELECT * WHERE 0", 'no tables specified'},
-    {"2.4", "SELECT count(*), *", 'no tables specified' }
+    {"1.1", "SELECT a, b, c FROM z1 WHERE *",  'Failed to execute SQL statement: near \"*\": syntax error'},
+    {"1.2", "SELECT a, b, c FROM z1 GROUP BY *", 'Failed to execute SQL statement: near \"*\": syntax error'},
+    {"1.3", "SELECT 1 + * FROM z1",  'Failed to execute SQL statement: near \"*\": syntax error'},
+    {"1.4", "SELECT * + 1 FROM z1", 'Failed to execute SQL statement: near \"+\": syntax error'},
+    {"2.1", "SELECT *", 'Failed to execute SQL statement: no tables specified'},
+    {"2.2", "SELECT * WHERE 1", 'Failed to execute SQL statement: no tables specified'},
+    {"2.3", "SELECT * WHERE 0", 'Failed to execute SQL statement: no tables specified'},
+    {"2.4", "SELECT count(*), *", 'Failed to execute SQL statement: no tables specified' }
 }
 
 for _, val in ipairs(data) do
@@ -1066,7 +1066,7 @@ data = {
 for _, val in ipairs(data) do
     local tn = val[1]
     local select = val[2]
-    local res = {1, "aggregate functions are not allowed in the GROUP BY clause"}
+    local res = {1, "Failed to execute SQL statement: aggregate functions are not allowed in the GROUP BY clause"}
     test:do_catchsql_test(
         "e_select-4."..tn,
         select, res)
@@ -1343,7 +1343,7 @@ for tn, val in ipairs(data) do
     local sql = val[1]
     local subst = val[2]
     local label = "e_select-7.1."..tn
-    local error = string.format("SELECTs to the left and right of %s do not have the same number of result columns", subst)
+    local error = string.format("Failed to execute SQL statement: SELECTs to the left and right of %s do not have the same number of result columns", subst)
     test:do_catchsql_test(
         label,
         sql,
@@ -1382,7 +1382,7 @@ for _, val in ipairs(data) do
     local op1 = val[3]
     local op2 = val[4]
     local label = "e_select-7.2."..tn
-    local error = string.format("%s clause should come after %s not before", op1, op2)
+    local error = string.format("Failed to execute SQL statement: %s clause should come after %s not before", op1, op2)
     test:do_catchsql_test(
         label,
         select,
@@ -1855,13 +1855,13 @@ test:do_catchsql_test(
     "e_select-8.7.1.1",
     "SELECT x FROM d1 UNION ALL SELECT a FROM d2 ORDER BY x*z",
     {
-        1, "1st ORDER BY term does not match any column in the result set"})
+        1, "Failed to execute SQL statement: 1st ORDER BY term does not match any column in the result set"})
 
 test:do_catchsql_test(
     "e_select-8.7.1.2",
     "SELECT x,z FROM d1 UNION ALL SELECT a,b FROM d2 ORDER BY x, x/z",
     {
-        1, "2nd ORDER BY term does not match any column in the result set"})
+        1, "Failed to execute SQL statement: 2nd ORDER BY term does not match any column in the result set"})
 
 test:do_select_tests(
     "e_select-8.7.2",
@@ -2092,7 +2092,7 @@ for _, val in ipairs({{1, "SELECT a FROM d5 UNION SELECT c FROM d6 ORDER BY a+1"
         "e_select-8.14."..tn,
         select,
         {
-            1, string.format("%s ORDER BY term does not match any column in the result set", err_param)})
+            1, string.format("Failed to execute SQL statement: %s ORDER BY term does not match any column in the result set", err_param)})
 end
 -- EVIDENCE-OF: R-03407-11483 Each term of the ORDER BY clause is
 -- processed separately and may be matched against result columns from
@@ -2176,7 +2176,7 @@ for _, val in ipairs({
         "e_select-9.2."..tn,
         select,
         {
-            1, "datatype mismatch"})
+            1, "Failed to execute SQL statement: datatype mismatch"})
 end
 
 -- EVIDENCE-OF: R-03014-26414 If the LIMIT expression evaluates to a
@@ -2230,7 +2230,7 @@ for _, val in ipairs({
     test:do_catchsql_test(
         "e_select-9.7."..tn,
         select, {
-            1, "datatype mismatch"
+            1, "Failed to execute SQL statement: datatype mismatch"
         })
 
 end
