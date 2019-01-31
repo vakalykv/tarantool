@@ -45,6 +45,7 @@
 #include "box/gc.h"
 #include "box/engine.h"
 #include "box/vinyl.h"
+#include "box/sql.h"
 #include "main.h"
 #include "version.h"
 #include "box/box.h"
@@ -191,6 +192,15 @@ lbox_info_replication(struct lua_State *L)
 		lua_rawseti(L, -2, replica->id);
 	}
 
+	return 1;
+}
+
+static int
+lbox_info_sql_call(struct lua_State *L)
+{
+	struct info_handler info;
+	luaT_info_handler_create(&info, L);
+	sql_debug_info(&info);
 	return 1;
 }
 
@@ -491,6 +501,7 @@ static const struct luaL_Reg lbox_info_dynamic_meta[] = {
 	{"memory", lbox_info_memory},
 	{"gc", lbox_info_gc},
 	{"vinyl", lbox_info_vinyl},
+	{"sql", lbox_info_sql_call},
 	{NULL, NULL}
 };
 

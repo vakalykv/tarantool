@@ -51,10 +51,10 @@ test:do_test(
 -- is done.  Then it appends the names of the table and index used.
 --
 local function queryplan(sql)
-    local sqlite_sort_count = box.sql.debug().sql_sort_count
+    local sqlite_sort_count = box.info.sql.sql_sort_count
     local data = test:execsql(sql)
     local x = "nosort"
-    if box.sql.debug().sql_sort_count - sqlite_sort_count then
+    if box.info.sql.sql_sort_count - sqlite_sort_count then
         x = "sort"
     end
     table.insert(data,x)
