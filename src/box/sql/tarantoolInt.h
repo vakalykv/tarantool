@@ -144,7 +144,6 @@ sql_encode_table(struct region *region, struct Table *table, uint32_t *size);
  * Encode "opts" dictionary for _space entry on @region.
  * @param region Region to use.
  * @param table Table containing opts to encode.
- * @param sql Source request to encode.
  * @param[out] size Size of result allocation.
  *
  * @retval NULL Error.
@@ -152,7 +151,7 @@ sql_encode_table(struct region *region, struct Table *table, uint32_t *size);
  */
 char *
 sql_encode_table_opts(struct region *region, struct Table *table,
-		      const char *sql, uint32_t *size);
+		      uint32_t *size);
 
 /**
  * Encode links of given foreign key constraint into MsgPack on

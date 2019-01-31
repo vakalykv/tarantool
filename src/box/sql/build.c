@@ -406,7 +406,6 @@ sqlite3StartTable(Parse *pParse, Token *pName, int noErr)
 
 	zName = sqlite3NameFromToken(db, pName);
 
-	pParse->sNameToken = *pName;
 	if (zName == 0)
 		return;
 	if (sqlite3CheckIdentifierName(pParse, zName) != SQLITE_OK)
@@ -962,7 +961,7 @@ error:
  * iCursor is a cursor to access _space.
  */
 static void
-createSpace(Parse * pParse, int iSpaceId, char *zStmt)
+createSpace(Parse * pParse, int iSpaceId)
 {
 	struct Table *table = pParse->pNewTable;
 	Vdbe *v = sqlite3GetVdbe(pParse);
@@ -970,7 +969,7 @@ createSpace(Parse * pParse, int iSpaceId, char *zStmt)
 	int iRecord = (pParse->nMem += 7);
 	struct region *region = &pParse->region;
 	uint32_t table_opts_stmt_sz = 0;
-	char *table_opts_stmt = sql_encode_table_opts(region, table, zStmt,
+	char *table_opts_stmt = sql_encode_table_opts(region, table,
 						      &table_opts_stmt_sz);
 	if (table_opts_stmt == NULL)
 		goto error;
@@ -1292,19 +1291,8 @@ sqlite3EndTable(Parse * pParse,	/* Parse context */
 	struct Vdbe *v = sqlite3GetVdbe(pParse);
 	if (NEVER(v == 0))
 		return;
-
-	/* Text of the CREATE VIEW statement. */
-	char *stmt = NULL;
-	if (p->def->opts.is_view) {
-		struct Token *pEnd2 = &pParse->sLastToken;
-		int n = pEnd2->z - pParse->sNameToken.z;
-		if (pEnd2->z[0] != ';')
-			n += pEnd2->n;
-		stmt = sqlite3MPrintf(db, "CREATE VIEW %.*s", n,
-				      pParse->sNameToken.z);
-	}
 	int reg_space_id = getNewSpaceId(pParse);
-	createSpace(pParse, reg_space_id, stmt);
+	createSpace(pParse, reg_space_id);
 	/* Indexes aren't required for VIEW's.. */
 	if (!p->def->opts.is_view) {
 		for (uint32_t i = 0; i < p->space->index_count; ++i) {

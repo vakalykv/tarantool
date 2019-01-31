@@ -2758,7 +2758,6 @@ struct Parse {
 		int lru;	/* Least recently used entry has the smallest value */
 	} aColCache[SQLITE_N_COLCACHE];	/* One for each column cache entry */
 	int aTempReg[8];	/* Holding area for temporary registers */
-	Token sNameToken;	/* Token with unqualified schema object name */
 
   /************************************************************************
   * Above is constant between recursions.  Below is reset before and after

@@ -1034,7 +1034,7 @@ sql_encode_table(struct region *region, struct Table *table, uint32_t *size)
 
 char *
 sql_encode_table_opts(struct region *region, struct Table *table,
-		      const char *sql, uint32_t *size)
+		      uint32_t *size)
 {
 	size_t used = region_used(region);
 	struct mpstream stream;
@@ -1049,12 +1049,12 @@ sql_encode_table_opts(struct region *region, struct Table *table,
 		checks_cnt = checks->nExpr;
 		a = checks->a;
 	}
-	assert(is_view || sql == NULL);
 	mpstream_encode_map(&stream, 2 * is_view + (checks_cnt > 0));
 
 	if (is_view) {
+		assert(table->def->opts.sql != NULL);
 		mpstream_encode_str(&stream, "sql");
-		mpstream_encode_str(&stream, sql);
+		mpstream_encode_str(&stream, table->def->opts.sql);
 		mpstream_encode_str(&stream, "view");
 		mpstream_encode_bool(&stream, true);
 	}
