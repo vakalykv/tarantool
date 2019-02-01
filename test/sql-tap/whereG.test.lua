@@ -80,7 +80,10 @@ test:do_eqp_test(
            AND album.aid=track.aid;
     ]], {
         -- <whereG-1.1>
-        "/.*composer.*track.*album.*/"
+        0,0,1,"SCAN TABLE COMPOSER",
+        0,1,2,"SEARCH TABLE TRACK USING COVERING INDEX TRACK_I1 (CID=?)",
+        0,2,0,"SEARCH TABLE ALBUM USING PRIMARY KEY (AID=?)",
+        0,0,0,"USE TEMP B-TREE FOR DISTINCT",
         -- </whereG-1.1>
     })
 
@@ -109,7 +112,10 @@ test:do_eqp_test(
            AND album.aid=track.aid;
     ]], {
         -- <whereG-1.3>
-        "/.*track.*composer.*album.*/"
+        0,0,2,"SCAN TABLE TRACK",
+        0,1,1,"SEARCH TABLE COMPOSER USING PRIMARY KEY (CID=?)",
+        0,2,0,"SEARCH TABLE ALBUM USING PRIMARY KEY (AID=?)",
+        0,0,0,"USE TEMP B-TREE FOR DISTINCT",
         -- </whereG-1.3>
     })
 
@@ -137,7 +143,10 @@ test:do_eqp_test(
            AND album.aid=track.aid;
     ]], {
         -- <whereG-1.5>
-        "/.*track.*(composer.*album|album.*composer).*/"
+        0,0,2,"SCAN TABLE TRACK",
+        0,1,0,"SEARCH TABLE ALBUM USING PRIMARY KEY (AID=?)",
+        0,2,1,"SEARCH TABLE COMPOSER USING PRIMARY KEY (CID=?)",
+        0,0,0,"USE TEMP B-TREE FOR DISTINCT"
         -- </whereG-1.5>
     })
 
@@ -165,7 +174,10 @@ test:do_eqp_test(
            AND unlikely(album.aid=track.aid);
     ]], {
         -- <whereG-1.7>
-        "/.*track.*(composer.*album|album.*composer).*/"
+        0,0,0,"SCAN TABLE ALBUM",
+        0,1,2,"SEARCH TABLE TRACK USING COVERING INDEX TRACK_I2 (AID=?)",
+        0,2,1,"SEARCH TABLE COMPOSER USING PRIMARY KEY (CID=?)",
+        0,0,0,"USE TEMP B-TREE FOR DISTINCT"
         -- </whereG-1.7>
     })
 
