@@ -4561,11 +4561,12 @@ sqlite3WhereBegin(Parse * pParse,	/* The parser context */
 		struct SrcList_item *pTabItem = &pTabList->a[pLevel->iFrom];
 		Table *pTab = pTabItem->pTab;
 		pLoop = pLevel->pWLoop;
-		struct space *space = space_cache_find(pTabItem->pTab->def->id);
+		struct space *space = NULL;
 		if (pTab->def->id == 0 || pTab->def->opts.is_view) {
 			/* Do nothing */
 		} else if ((pLoop->wsFlags & WHERE_IDX_ONLY) == 0 &&
 			   (wctrlFlags & WHERE_OR_SUBCLAUSE) == 0) {
+			space = space_cache_find(pTabItem->pTab->def->id);
 			if (pWInfo->eOnePass != ONEPASS_OFF)
 				pWInfo->aiCurOnePass[0] = pTabItem->iCursor;
 			assert(space->index_count > 0);
