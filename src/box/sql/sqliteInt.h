@@ -1575,16 +1575,13 @@ struct sqlite3 {
 #define SQLITE_WhereTrace     0x00008000       /* Debug info about optimizer's work */
 #define SQLITE_VdbeListing    0x00000400	/* Debug listings of VDBE programs */
 #define SQLITE_VdbeAddopTrace 0x00001000	/* Trace sqlite3VdbeAddOp() calls */
-#define SQLITE_ReadUncommitted 0x0004000	/* For shared-cache mode */
 #define SQLITE_ReverseOrder   0x00020000	/* Reverse unordered SELECTs */
 #define SQLITE_RecTriggers    0x00040000	/* Enable recursive triggers */
 #define SQLITE_AutoIndex      0x00100000	/* Enable automatic indexes */
 #define SQLITE_PreferBuiltin  0x00200000	/* Preference to built-in funcs */
 #define SQLITE_EnableTrigger  0x01000000	/* True to enable triggers */
 #define SQLITE_DeferFKs       0x02000000	/* Defer all FK constraints */
-#define SQLITE_QueryOnly      0x04000000	/* Disable database changes */
 #define SQLITE_VdbeEQP        0x08000000	/* Debug EXPLAIN QUERY PLAN */
-#define SQLITE_NoCkptOnClose  0x80000000	/* No checkpoint on close()/DETACH */
 
 /*
  * Bits of the sqlite3.dbOptFlags field that are used by the

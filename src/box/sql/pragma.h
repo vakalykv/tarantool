@@ -55,22 +55,20 @@ static const char *const pragCName[] = {
 	/*  16 */ "seq",
 	/*  17 */ "name",
 	/*  18 */ "unique",
-	/*  19 */ "origin",
-	/*  20 */ "partial",
 	/* Used by: collation_list */
-	/*  21 */ "seq",
-	/*  22 */ "name",
+	/*  19 */ "seq",
+	/*  20 */ "name",
 	/* Used by: foreign_key_list */
-	/*  23 */ "id",
-	/*  24 */ "seq",
-	/*  25 */ "table",
-	/*  26 */ "from",
-	/*  27 */ "to",
-	/*  28 */ "on_update",
-	/*  29 */ "on_delete",
-	/*  30 */ "match",
+	/*  21 */ "id",
+	/*  22 */ "seq",
+	/*  23 */ "table",
+	/*  24 */ "from",
+	/*  25 */ "to",
+	/*  26 */ "on_update",
+	/*  27 */ "on_delete",
+	/*  28 */ "match",
 	/* Used by: busy_timeout */
-	/*  31 */ "timeout",
+	/*  29 */ "timeout",
 };
 
 /* Definitions of all built-in pragmas */
@@ -90,7 +88,7 @@ static const PragmaName aPragmaName[] = {
 	{ /* zName:     */ "busy_timeout",
 	 /* ePragTyp:  */ PragTyp_BUSY_TIMEOUT,
 	 /* ePragFlg:  */ PragFlg_Result0,
-	 /* ColNames:  */ 31, 1,
+	 /* ColNames:  */ 29, 1,
 	 /* iArg:      */ 0},
 	{ /* zName:     */ "case_sensitive_like",
 	 /* ePragTyp:  */ PragTyp_CASE_SENSITIVE_LIKE,
@@ -101,7 +99,7 @@ static const PragmaName aPragmaName[] = {
 	{ /* zName:     */ "collation_list",
 	 /* ePragTyp:  */ PragTyp_COLLATION_LIST,
 	 /* ePragFlg:  */ PragFlg_Result0,
-	 /* ColNames:  */ 21, 2,
+	 /* ColNames:  */ 19, 2,
 	 /* iArg:      */ 0},
 #endif
 #if !defined(SQLITE_OMIT_FLAG_PRAGMAS)
@@ -122,7 +120,7 @@ static const PragmaName aPragmaName[] = {
 	 /* ePragTyp:  */ PragTyp_FOREIGN_KEY_LIST,
 	 /* ePragFlg:  */
 	 PragFlg_NeedSchema | PragFlg_Result1 | PragFlg_SchemaOpt,
-	 /* ColNames:  */ 23, 8,
+	 /* ColNames:  */ 21, 8,
 	 /* iArg:      */ 0},
 #if !defined(SQLITE_OMIT_FLAG_PRAGMAS)
 	{ /* zName:     */ "full_column_names",
@@ -142,7 +140,7 @@ static const PragmaName aPragmaName[] = {
 	 /* ePragTyp:  */ PragTyp_INDEX_LIST,
 	 /* ePragFlg:  */
 	 PragFlg_NeedSchema | PragFlg_Result1 | PragFlg_SchemaOpt,
-	 /* ColNames:  */ 16, 5,
+	 /* ColNames:  */ 16, 3,
 	 /* iArg:      */ 0},
 #endif
 #if defined(SQLITE_DEBUG) && !defined(SQLITE_OMIT_PARSER_TRACE)
@@ -153,16 +151,6 @@ static const PragmaName aPragmaName[] = {
 	 /* iArg:      */ 0},
 #endif
 #if !defined(SQLITE_OMIT_FLAG_PRAGMAS)
-	{ /* zName:     */ "query_only",
-	 /* ePragTyp:  */ PragTyp_FLAG,
-	 /* ePragFlg:  */ PragFlg_Result0 | PragFlg_NoColumns1,
-	 /* ColNames:  */ 0, 0,
-	 /* iArg:      */ SQLITE_QueryOnly},
-	{ /* zName:     */ "read_uncommitted",
-	 /* ePragTyp:  */ PragTyp_FLAG,
-	 /* ePragFlg:  */ PragFlg_Result0 | PragFlg_NoColumns1,
-	 /* ColNames:  */ 0, 0,
-	 /* iArg:      */ SQLITE_ReadUncommitted},
 	{ /* zName:     */ "recursive_triggers",
 	 /* ePragTyp:  */ PragTyp_FLAG,
 	 /* ePragFlg:  */ PragFlg_Result0 | PragFlg_NoColumns1,

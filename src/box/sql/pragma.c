@@ -391,14 +391,30 @@ sql_pragma_index_list(struct Parse *parse, const char *tbl_name)
 	struct space *space = space_by_name(tbl_name);
 	if (space == NULL)
 		return;
-	parse->nMem = 5;
+	parse->nMem = 3;
 	struct Vdbe *v = sqlite3GetVdbe(parse);
 	for (uint32_t i = 0; i < space->index_count; ++i) {
 		struct index *idx = space->index[i];
-		sqlite3VdbeMultiLoad(v, 1, "isisi", i, idx->def->name,
+		sqlite3VdbeMultiLoad(v, 1, "isi", i, idx->def->name,
 				     idx->def->opts.is_unique);
-		sqlite3VdbeAddOp2(v, OP_ResultRow, 1, 5);
+		sqlite3VdbeAddOp2(v, OP_ResultRow, 1, 3);
 	}
+}
+
+/*
+ * @brief Check whether the specified token is a string or ID.
+ * @param token - token to be examined
+ * @return true - if the token value is enclosed into quotes (')
+ * @return false in other cases
+ * The empty value is considered to be a string.
+ */
+static bool
+token_is_string(const struct Token* token)
+{
+	if (!token || token->n == 0)
+		return true;
+	return token->n >= 2 && token->z[0] == '\'' &&
+	       token->z[token->n - 1] == '\'';
 }
 
 /*
@@ -601,6 +617,13 @@ sqlite3Pragma(Parse * pParse, Token * pId,	/* First part of [schema.]id field */
 		}
 
 	case PragTyp_DEFAULT_ENGINE: {
+		if (!token_is_string(pValue)) {
+			diag_set(ClientError, ER_ILLEGAL_PARAMS,
+				 "string value is expected");
+			pParse->rc = SQL_TARANTOOL_ERROR;
+			pParse->nErr++;
+			goto pragma_out;
+		}
 		if (sql_default_engine_set(zRight) != 0) {
 			pParse->rc = SQL_TARANTOOL_ERROR;
 			pParse->nErr++;
