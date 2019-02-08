@@ -468,7 +468,7 @@ sql_generate_row_delete(struct Parse *parse, struct Table *table,
 	    (fkey_is_required(table->def->id, NULL) || trigger_list != NULL)) {
 		/* Mask of OLD.* columns in use */
 		/* TODO: Could use temporary registers here. */
-		uint32_t mask =
+		uint64_t mask =
 			sql_trigger_colmask(parse, trigger_list, 0, 0,
 					    TRIGGER_BEFORE | TRIGGER_AFTER,
 					    table, onconf);
@@ -484,10 +484,8 @@ sql_generate_row_delete(struct Parse *parse, struct Table *table,
 		 */
 		sqlite3VdbeAddOp2(v, OP_Copy, reg_pk, first_old_reg);
 		for (int i = 0; i < (int)table->def->field_count; i++) {
-			testcase(mask != 0xffffffff && iCol == 31);
-			testcase(mask != 0xffffffff && iCol == 32);
-			if (mask == 0xffffffff
-			    || (i <= 31 && (mask & MASKBIT32(i)) != 0)) {
+			if (i >= COLUMN_MASK_SIZE ||
+			    column_mask_fieldno_is_set(mask, i)) {
 				sqlite3ExprCodeGetColumnOfTable(v, table->def,
 								cursor, i,
 								first_old_reg +

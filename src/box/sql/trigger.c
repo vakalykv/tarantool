@@ -786,8 +786,8 @@ sql_row_trigger_program(struct Parse *parser, struct sql_trigger *trigger,
 	sqlite3VdbeLinkSubProgram(pTop->pVdbe, pProgram);
 	pPrg->trigger = trigger;
 	pPrg->orconf = orconf;
-	pPrg->aColmask[0] = 0xffffffff;
-	pPrg->aColmask[1] = 0xffffffff;
+	pPrg->column_mask[0] = COLUMN_MASK_FULL;
+	pPrg->column_mask[1] = COLUMN_MASK_FULL;
 
 	/*
 	 * Allocate and populate a new Parse context to use for
@@ -859,8 +859,8 @@ sql_row_trigger_program(struct Parse *parser, struct sql_trigger *trigger,
 		pProgram->nMem = pSubParse->nMem;
 		pProgram->nCsr = pSubParse->nTab;
 		pProgram->token = (void *)trigger;
-		pPrg->aColmask[0] = pSubParse->oldmask;
-		pPrg->aColmask[1] = pSubParse->newmask;
+		pPrg->column_mask[0] = pSubParse->oldmask;
+		pPrg->column_mask[1] = pSubParse->newmask;
 		sqlite3VdbeDelete(v);
 	}
 
@@ -978,13 +978,13 @@ vdbe_code_row_trigger(struct Parse *parser, struct sql_trigger *trigger,
 	}
 }
 
-u32
+uint64_t
 sql_trigger_colmask(Parse *parser, struct sql_trigger *trigger,
 		    ExprList *changes_list, int new, int tr_tm,
 		    Table *table, int orconf)
 {
 	const int op = changes_list != NULL ? TK_UPDATE : TK_DELETE;
-	u32 mask = 0;
+	uint64_t mask = 0;
 
 	assert(new == 1 || new == 0);
 	for (struct sql_trigger *p = trigger; p != NULL; p = p->next) {
@@ -993,7 +993,7 @@ sql_trigger_colmask(Parse *parser, struct sql_trigger *trigger,
 			TriggerPrg *prg =
 				sql_row_trigger(parser, p, table, orconf);
 			if (prg != NULL)
-				mask |= prg->aColmask[new];
+				mask |= prg->column_mask[new];
 		}
 	}
 
