@@ -2698,10 +2698,9 @@ sqlite3VdbeDeleteAuxData(sqlite3 * db, AuxData ** pp, int iOp, int mask)
 {
 	while (*pp) {
 		AuxData *pAux = *pp;
-		if ((iOp < 0)
-		    || (pAux->iOp == iOp
-			&& (pAux->iArg > 31 || !(mask & MASKBIT32(pAux->iArg))))
-		    ) {
+		if (iOp < 0 || (pAux->iOp == iOp &&
+		    (pAux->iArg >= 32 ||
+		    (mask & COLUMN_MASK_BIT(pAux->iArg)) == 0))) {
 			testcase(pAux->iArg == 31);
 			if (pAux->xDelete) {
 				pAux->xDelete(pAux->pAux);

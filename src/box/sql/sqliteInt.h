@@ -2307,7 +2307,6 @@ typedef u64 Bitmask;
  * A bit in a Bitmask
  */
 #define MASKBIT(n)   (((Bitmask)1)<<(n))
-#define MASKBIT32(n) (((unsigned int)1)<<(n))
 #define ALLBITS      ((Bitmask)-1)
 
 /*

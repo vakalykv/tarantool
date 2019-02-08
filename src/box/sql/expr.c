@@ -3963,7 +3963,11 @@ sqlite3ExprCodeTarget(Parse * pParse, Expr * pExpr, int target)
 			int nFarg;	/* Number of function arguments */
 			FuncDef *pDef;	/* The function definition object */
 			const char *zId;	/* The function name */
-			u32 constMask = 0;	/* Mask of function arguments that are constant */
+			/*
+			 * Mask of function arguments that are
+			 * constant.
+			 */
+			uint32_t const_mask = 0;
 			int i;	/* Loop counter */
 			sqlite3 *db = pParse->db;	/* The database connection */
 			struct coll *coll = NULL;
@@ -4038,11 +4042,10 @@ sqlite3ExprCodeTarget(Parse * pParse, Expr * pExpr, int target)
 			}
 
 			for (i = 0; i < nFarg; i++) {
-				if (i < 32
-				    && sqlite3ExprIsConstant(pFarg->a[i].
-							     pExpr)) {
-					testcase(i == 31);
-					constMask |= MASKBIT32(i);
+				if (i < 32 &&
+				    sqlite3ExprIsConstant(pFarg->a[i].pExpr)) {
+					column_mask_set_fieldno((uint64_t *)
+								&const_mask, i);
 				}
 				if ((pDef->funcFlags & SQLITE_FUNC_NEEDCOLL) !=
 				    0 && coll == NULL) {
@@ -4054,7 +4057,7 @@ sqlite3ExprCodeTarget(Parse * pParse, Expr * pExpr, int target)
 				}
 			}
 			if (pFarg) {
-				if (constMask) {
+				if (const_mask != 0) {
 					r1 = pParse->nMem + 1;
 					pParse->nMem += nFarg;
 				} else {
@@ -4102,12 +4105,11 @@ sqlite3ExprCodeTarget(Parse * pParse, Expr * pExpr, int target)
 				sqlite3VdbeAddOp4(v, OP_CollSeq, 0, 0, 0,
 						  (char *)coll, P4_COLLSEQ);
 			}
-			sqlite3VdbeAddOp4(v, OP_Function0, constMask, r1,
+			sqlite3VdbeAddOp4(v, OP_Function0, const_mask, r1,
 					  target, (char *)pDef, P4_FUNCDEF);
 			sqlite3VdbeChangeP5(v, (u8) nFarg);
-			if (nFarg && constMask == 0) {
+			if (nFarg && const_mask == 0)
 				sqlite3ReleaseTempRange(pParse, r1, nFarg);
-			}
 			return target;
 		}
 	case TK_EXISTS:
