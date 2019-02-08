@@ -32,14 +32,15 @@
 %syntax_error {
   UNUSED_PARAMETER(yymajor);  /* Silence some compiler warnings */
   assert( TOKEN.z[0] );  /* The tokenizer always gives us a token */
-  if (yypParser->is_fallback_failed && TOKEN.isReserved) {
-    sqlite3ErrorMsg(pParse, "keyword \"%T\" is reserved", &TOKEN);
-  } else {
-    sqlite3ErrorMsg(pParse, "near \"%T\": syntax error", &TOKEN);
-  }
+  if (yypParser->is_fallback_failed && TOKEN.isReserved)
+    diag_set(ClientError, ER_SQL_KEYWORD_IS_RESERVED, TOKEN.n, TOKEN.z);
+  else
+    diag_set(ClientError, ER_SQL_SYNTAX_ERROR, TOKEN.n, TOKEN.z);
+  sqlite3_error(pParse);
 }
 %stack_overflow {
-  sqlite3ErrorMsg(pParse, "parser stack overflow");
+  diag_set(ClientError, ER_SQL_PARSER_STACK_OVERFLOW);
+  sqlite3_error(pParse);
 }
 
 // The name of the generated procedure that implements the parser
@@ -114,7 +115,8 @@ ecmd ::= explain cmdx SEMI. {
 		sql_finish_coding(pParse);
 }
 ecmd ::= SEMI. {
-  sqlite3ErrorMsg(pParse, "syntax error: empty request");
+  diag_set(ClientError, ER_SQL_EMPTY_REQUEST);
+  sqlite3_error(pParse);
 }
 explain ::= .
 explain ::= EXPLAIN.              { pParse->explain = 1; }
@@ -227,8 +229,9 @@ columnname(A) ::= nm(A) typedef(Y). {sqlite3AddColumn(pParse,&A,&Y);}
 %type nm {Token}
 nm(A) ::= id(A). {
   if(A.isReserved) {
-    sqlite3ErrorMsg(pParse, "keyword \"%T\" is reserved", &A);
-  }
+    diag_set(ClientError, ER_SQL_KEYWORD_IS_RESERVED, A.n, A.z);
+    sqlite3_error(pParse);
+}
 }
 
 // "carglist" is a list of additional constraints that come after the
@@ -399,9 +402,9 @@ cmd ::= select(X).  {
         (mxSelect = pParse->db->aLimit[SQL_LIMIT_COMPOUND_SELECT])>0 &&
         cnt>mxSelect
       ){
-        sqlite3ErrorMsg(pParse, "Too many UNION or EXCEPT or INTERSECT "
-                        "operations (limit %d is set)",
-                        pParse->db->aLimit[SQL_LIMIT_COMPOUND_SELECT]);
+        diag_set(ClientError, ER_SQL_TOO_MANY_OPERATIONS,
+                 pParse->db->aLimit[SQL_LIMIT_COMPOUND_SELECT]);
+        sqlite3_error(pParse);
       }
     }
   }
@@ -886,19 +889,23 @@ expr(A) ::= VARIABLE(X).     {
   Token t = X;
   if (pParse->parse_only) {
     spanSet(&A, &t, &t);
-    sqlite3ErrorMsg(pParse, "bindings are not allowed in DDL");
+    diag_set(ClientError, ER_SQL_BINDINGS_IN_DDL);
+    sqlite3_error(pParse);
     A.pExpr = NULL;
   } else if (!(X.z[0]=='#' && sqlite3Isdigit(X.z[1]))) {
     u32 n = X.n;
     spanExpr(&A, pParse, TK_VARIABLE, X);
-    if (A.pExpr->u.zToken[0] == '?' && n > 1)
-        sqlite3ErrorMsg(pParse, "near \"%T\": syntax error", &t);
-    else
+    if (A.pExpr->u.zToken[0] == '?' && n > 1) {
+      diag_set(ClientError, ER_SQL_SYNTAX_ERROR, t.n, t.z);
+      sqlite3_error(pParse);
+    } else {
         sqlite3ExprAssignVarNumber(pParse, A.pExpr, n);
+    }
   }else{
     assert( t.n>=2 );
     spanSet(&A, &t, &t);
-    sqlite3ErrorMsg(pParse, "near \"%T\": syntax error", &t);
+    diag_set(ClientError, ER_SQL_SYNTAX_ERROR, t.n, t.z);
+    sqlite3_error(pParse);
     A.pExpr = NULL;
   }
 }
@@ -916,7 +923,8 @@ expr(A) ::= CAST(X) LP expr(E) AS typedef(T) RP(Y). {
 %endif  SQLITE_OMIT_CAST
 expr(A) ::= id(X) LP distinct(D) exprlist(Y) RP(E). {
   if( Y && Y->nExpr>pParse->db->aLimit[SQLITE_LIMIT_FUNCTION_ARG] ){
-    sqlite3ErrorMsg(pParse, "too many arguments on function %T", &X);
+    diag_set(ClientError, ER_SQL_TOO_MANY_ARGUMENTS, X.n, X.z);
+    sqlite3_error(pParse);
   }
   A.pExpr = sqlite3ExprFunction(pParse, Y, &X);
   spanSet(&A,&X,&E);
@@ -930,7 +938,8 @@ type_func(A) ::= DATETIME(A) .
 type_func(A) ::= CHAR(A) .
 expr(A) ::= type_func(X) LP distinct(D) exprlist(Y) RP(E). {
   if( Y && Y->nExpr>pParse->db->aLimit[SQLITE_LIMIT_FUNCTION_ARG] ){
-    sqlite3ErrorMsg(pParse, "too many arguments on function %T", &X);
+    diag_set(ClientError, ER_SQL_TOO_MANY_ARGUMENTS, X.n, X.z);
+    sqlite3_error(pParse);
   }
   A.pExpr = sqlite3ExprFunction(pParse, Y, &X);
   spanSet(&A,&X,&E);
@@ -1249,8 +1258,8 @@ uniqueflag(A) ::= .        {A = SQL_INDEX_TYPE_NON_UNIQUE;}
     if( (hasCollate || sortOrder != SORT_ORDER_UNDEF)
         && pParse->db->init.busy==0
     ){
-      sqlite3ErrorMsg(pParse, "syntax error after column name \"%.*s\"",
-                         pIdToken->n, pIdToken->z);
+      diag_set(ClientError, ER_SQL_SYNTAX_ERROR_2, pIdToken->n, pIdToken->z);
+      sqlite3_error(pParse);
     }
     sqlite3ExprListSetName(pParse, p, pIdToken, 1);
     return p;
@@ -1369,9 +1378,8 @@ trigger_cmd_list(A) ::= trigger_cmd(A) SEMI. {
 trnm(A) ::= nm(A).
 trnm(A) ::= nm DOT nm(X). {
   A = X;
-  sqlite3ErrorMsg(pParse, 
-        "qualified table names are not allowed on INSERT, UPDATE, and DELETE "
-        "statements within triggers");
+  diag_set(ClientError, ER_SQL_QUAL_TBL_NAMES_IN_TR);
+  sqlite3_error(pParse);
 }
 
 // Disallow the INDEX BY and NOT INDEXED clauses on UPDATE and DELETE
@@ -1380,14 +1388,12 @@ trnm(A) ::= nm DOT nm(X). {
 //
 tridxby ::= .
 tridxby ::= INDEXED BY nm. {
-  sqlite3ErrorMsg(pParse,
-        "the INDEXED BY clause is not allowed on UPDATE or DELETE statements "
-        "within triggers");
+  diag_set(ClientError, ER_SQL_CLAUSE_ON_UPD_DEL, "INDEXED BY");
+  sqlite3_error(pParse);
 }
 tridxby ::= NOT INDEXED. {
-  sqlite3ErrorMsg(pParse,
-        "the NOT INDEXED clause is not allowed on UPDATE or DELETE statements "
-        "within triggers");
+  diag_set(ClientError, ER_SQL_CLAUSE_ON_UPD_DEL, "NOT INDEXED");
+  sqlite3_error(pParse);
 }
 
 

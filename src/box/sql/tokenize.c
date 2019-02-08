@@ -485,9 +485,10 @@ sqlite3RunParser(Parse * pParse, const char *zSql, char **pzErrMsg)
 				break;
 			}
 			if (tokenType == TK_ILLEGAL) {
-				sqlite3ErrorMsg(pParse,
-						"unrecognized token: \"%T\"",
-						&pParse->sLastToken);
+				diag_set(ClientError, ER_SQL_UNRECOGNIZED_TOKEN,
+					 pParse->sLastToken.n,
+					 pParse->sLastToken.z);
+				sqlite3_error(pParse);
 				break;
 			}
 		} else {

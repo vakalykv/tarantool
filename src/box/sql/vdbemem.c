@@ -1220,7 +1220,9 @@ valueFromFunction(sqlite3 * db,	/* The database connection */
 	pFunc->xSFunc(&ctx, nVal, apVal);
 	if (ctx.isError) {
 		rc = ctx.isError;
-		sqlite3ErrorMsg(pCtx->pParse, "%s", sqlite3_value_text(pVal));
+		diag_set(ClientError, ER_SQL_FUNC_FAILED,
+			 sqlite3_value_text(pVal));
+		sqlite3_error(pCtx->pParse);
 	} else {
 		sql_value_apply_type(pVal, type);
 		assert(rc == SQLITE_OK);

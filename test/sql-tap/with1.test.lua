@@ -782,7 +782,7 @@ test:do_catchsql_test("10.7.1", [[
   SELECT * FROM t
 ]], {
   -- <10.7.1>
-  1, "1st ORDER BY term does not match any column in the result set"
+  1, "ORDER BY term does not match any column in the result set"
   -- </10.7.1>
 })
 

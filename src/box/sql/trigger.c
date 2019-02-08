@@ -622,8 +622,8 @@ codeTriggerProgram(Parse * pParse,	/* The parser context */
 	sqlSubProgramsRemaining--;
 
 	if (sqlSubProgramsRemaining == 0) {
-		sqlite3ErrorMsg(pParse,
-				"Maximum number of chained trigger activations exceeded.");
+		diag_set(ClientError, ER_SQL_EXCEEDED_MAX_TRIG);
+		sqlite3_error(pParse);
 	}
 
 	for (pStep = pStepList; pStep; pStep = pStep->pNext) {

@@ -227,6 +227,90 @@ struct errcode_record {
 	/*172 */_(ER_ROWID_OVERFLOW,            "Rowid is overflowed: too many entries in ephemeral space") \
 	/*173 */_(ER_DROP_COLLATION,		"Can't drop collation %s : %s") \
 	/*174 */_(ER_ILLEGAL_COLLATION_MIX,	"Illegal mix of collations") \
+	/*175 */_(ER_SQL_INVALID_IDENTIFIER_NAME, "identifier name is invalid: %s") \
+	/*176 */_(ER_SQL_TABLE_EXISTS,		"table %s already exists") \
+	/*177 */_(ER_SQL_TOO_MANY_COLUMNS,	"too many columns on %s") \
+	/*178 */_(ER_SQL_DUPLICATE_COLUMN_NAME,	"duplicate column name: %s") \
+	/*179 */_(ER_SQL_NONCONST_DEFAULT_VALUE, "default value of column [%s] is not constant") \
+	/*180 */_(ER_SQL_TOO_MANY_PK,		"table \"%s\" has more than one primary key") \
+	/*181 */_(ER_SQL_EXPR_IN_PK,		"expressions prohibited in PRIMARY KEY") \
+	/*182 */_(ER_SQL_AUTOINC_IN_NOT_PK,	"AUTOINCREMENT is only allowed on an INTEGER PRIMARY KEY or INT PRIMARY KEY") \
+	/*183 */_(ER_SQL_PK_MISSING,		"PRIMARY KEY missing on table %s") \
+	/*184 */_(ER_SQL_PARAMETER_IN_VIEW,	"parameters are not allowed in views") \
+	/*185 */_(ER_SQL_WRONG_COLUMN_NUMBER,	"expected %d columns for '%s' but got %d") \
+	/*186 */_(ER_SQL_NO_SUCH_TABLE,		"no such table: %s") \
+	/*187 */_(ER_SQL_WRONG_TABLE_DROP,	"use DROP TABLE to delete table %s") \
+	/*188 */_(ER_SQL_WRONG_VIEW_DROP,	"use DROP VIEW to delete view %s") \
+	/*189 */_(ER_SQL_REFERENCED_VIEW,	"referenced table can't be view") \
+	/*190 */_(ER_SQL_INDEXING_VIEW,		"views can not be indexed") \
+	/*191 */_(ER_SQL_INDEX_EXISTS,		"index %s.%s already exists") \
+	/*192 */_(ER_SQL_NO_SUCH_INDEX,		"no such index: %s.%s") \
+	/*193 */_(ER_SQL_JOIN_CLAUSE_BEFORE,	"a JOIN clause is required before %s") \
+	/*194 */_(ER_SQL_DUPL_WITH_TBL_NAME,	"duplicate WITH table name: %s") \
+	/*195 */_(ER_SQL_NO_SUCH_VIEW,		"no such view: %s") \
+	/*196 */_(ER_SQL_MISUSE_OF_AGG,		"misuse of aliased aggregate %s") \
+	/*197 */_(ER_SQL_MISUSE_OF_ROW_VALUE,	"row value misused") \
+	/*198 */_(ER_SQL_PROHIBITED_IN,		"%s prohibited in %s") \
+	/*199 */_(ER_SQL_LIKELIHOOD_SEC_ARG,	"second argument to likelihood() must be a constant between 0.0 and 1.0") \
+	/*200 */_(ER_SQL_MISUSE_OF_AGG_FUNC,	"misuse of aggregate function %.*s()") \
+	/*201 */_(ER_SQL_NO_SUCH_FUNC,		"no such function: %.*s") \
+	/*202 */_(ER_SQL_WRONG_NUMBER_OF_ARG,	"wrong number of arguments to function %.*s()") \
+	/*203 */_(ER_SQL_OUT_OF_RANGE,		"%s BY term out of range - should be between 1 and %d") \
+	/*204 */_(ER_SQL_TOO_MANY_TERMS,	"too many terms in %s BY clause") \
+	/*205 */_(ER_SQL_DOES_NOT_MATCH,	"ORDER BY term does not match any column in the result set") \
+	/*206 */_(ER_SQL_AGG_FUNC_IN_GROUP_BY,	"aggregate functions are not allowed in the GROUP BY clause") \
+	/*207 */_(ER_SQL_NO_SUCH_COLUMN,	"no such column: %s") \
+	/*208 */_(ER_SQL_NO_SUCH_COLUMN_2,	"no such column: %s.%s") \
+	/*209 */_(ER_SQL_AMBIGUOUS_COLUMN_NAME,	"ambiguous column name: %s") \
+	/*210 */_(ER_SQL_AMBIGUOUS_COLUMN_NAME_2, "ambiguous column name: %s.%s") \
+	/*211 */_(ER_SQL_TOO_LARGE_EXPR_TREE,	"Expression tree is too large (maximum depth %d)") \
+	/*212 */_(ER_SQL_OUT_OF_RANGE_2,	"variable number must be between $1 and $%d") \
+	/*213 */_(ER_SQL_TOO_MANY_VARIABLES,	"too many SQL variables") \
+	/*214 */_(ER_SQL_WRONG_VALUE_COUNT,	"%d columns assigned %d values") \
+	/*215 */_(ER_SQL_WRONG_COLUMN_COUNT,	"sub-select returns %d columns - expected %d") \
+	/*216 */_(ER_SQL_MISUSE_OF_AGG_2,	"misuse of aggregate: %s()") \
+	/*217 */_(ER_SQL_UNKNOWN_FUNCTION,	"unknown function: %s()") \
+	/*218 */_(ER_SQL_RAISE_NOT_IN_TRIG_PROG, "RAISE() may only be used within a trigger-program") \
+	/*219 */_(ER_SQL_HEX_LITERAL_TOO_BIG,	"hex literal too big: %s%s") \
+	/*220 */_(ER_SQL_OVERSIZED_INTEGER,	"oversized integer: %s%s") \
+	/*221 */_(ER_SQL_CANNOT_MODIFY_VIEW,	"cannot modify %s because it is a view") \
+	/*222 */_(ER_SQL_CANNOT_ANALYZE_VIEW,	"VIEW isn't allowed to be analyzed") \
+	/*223 */_(ER_SQL_NO_SUCH_PRAGMA,	"no such pragma: %s") \
+	/*224 */_(ER_SQL_UNKNOWN_JOIN,		"unknown or unsupported join type: %.*s %.*s") \
+	/*225 */_(ER_SQL_UNKNOWN_JOIN_2,	"unknown or unsupported join type: %.*s %.*s %.*s") \
+	/*226 */_(ER_SQL_UNSUPPORTED_JOIN,	"RIGHT and FULL OUTER JOINs are not currently supported") \
+	/*227 */_(ER_SQL_KEYWORD_IS_RESERVED,	"keyword \"%.*s\" is reserved") \
+	/*228 */_(ER_SQL_SYNTAX_ERROR,		"near \"%.*s\": syntax error") \
+	/*229 */_(ER_SQL_PARSER_STACK_OVERFLOW,	"parser stack overflow") \
+	/*230 */_(ER_SQL_EMPTY_REQUEST,		"syntax error: empty request") \
+	/*231 */_(ER_SQL_BINDINGS_IN_DDL,	"bindings are not allowed in DDL") \
+	/*232 */_(ER_SQL_TOO_MANY_ARGUMENTS,	"too many arguments on function %.*s") \
+	/*233 */_(ER_SQL_CLAUSE_ON_UPD_DEL,	"the %s clause is not allowed on UPDATE or DELETE statements within triggers") \
+	/*234 */_(ER_SQL_TOO_MANY_OPERATIONS,	"Too many UNION or EXCEPT or INTERSECT operations (limit %d is set)") \
+	/*235 */_(ER_SQL_QUAL_TBL_NAMES_IN_TR,	"qualified table names are not allowed on INSERT, UPDATE, and DELETE statements within triggers") \
+	/*236 */_(ER_SQL_SYNTAX_ERROR_2,	"syntax error after column name \"%.*s\"") \
+	/*237 */_(ER_SQL_NATURAL_JOIN_ON_USING,	"a NATURAL join may not have an ON or USING clause") \
+	/*238 */_(ER_SQL_JOIN_BOTH_ON_USING,	"cannot have both ON and USING clauses in the same join") \
+	/*238 */_(ER_SQL_CANNOT_JOIN_USING_COL,	"cannot join using column %s - column not present in both tables") \
+	/*239 */_(ER_SQL_RECURS_AGG_QUERY,	"recursive aggregate queries not supported") \
+	/*240 */_(ER_SQL_CLAUSE_GO_AFTER,	"%s clause should come after %s not before") \
+	/*241 */_(ER_SQL_IS_NOT_A_FUNCTION,	"'%s' is not a function") \
+	/*242 */_(ER_SQL_MULTIPLE_REFS_REC_TBL,	"multiple references to recursive table: %s") \
+	/*243 */_(ER_SQL_TBL_VALS_COLS,		"table %s has %d values for %d columns") \
+	/*244 */_(ER_SQL_TABLE_NOT_SPECIFIED,	"no tables specified") \
+	/*245 */_(ER_SQL_TOO_MANY_COLUMNS_RES,	"too many columns in result set") \
+	/*246 */_(ER_SQL_DISTINCT_ADD_ONE_ARG,	"DISTINCT aggregates must have exactly one argument") \
+	/*247 */_(ER_SQL_EQUAL_NUM_VAL_TERMS,	"all VALUES must have the same number of terms") \
+	/*248 */_(ER_SQL_WRONG_COL_NUM,		"SELECTs to the left and right of %s do not have the same number of result columns") \
+	/*249 */_(ER_SQL_NO_SUCH_INDEX_2,	"no such index: %s") \
+	/*250 */_(ER_SQL_UNRECOGNIZED_TOKEN,	"unrecognized token: \"%.*s\"") \
+	/*251 */_(ER_SQL_EXCEEDED_MAX_TRIG,	"Maximum number of chained trigger activations exceeded.") \
+	/*252 */_(ER_SQL_SET_ID_DUPLICATE_COL,	"set id list: duplicate column name %s") \
+	/*253 */_(ER_SQL_NO_QUERY_SOLUTION,	"no query solution") \
+	/*254 */_(ER_SQL_TOO_MUCH_TO_JOIN,	"at most %d tables in a join") \
+	/*255 */_(ER_SQL_TOO_MANY_ARGS,		"too many arguments on %s() - max %d") \
+	/*256 */_(ER_SQL_WITH_EXPAND,		"%s: %s") \
+	/*257 */_(ER_SQL_FUNC_FAILED,		"%s") \
 
 /*
  * !IMPORTANT! Please follow instructions at start of the file

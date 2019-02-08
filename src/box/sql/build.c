@@ -194,7 +194,8 @@ sql_finish_coding(struct Parse *parse_context)
 		sqlite3VdbeMakeReady(v, parse_context);
 		parse_context->rc = SQLITE_DONE;
 	} else {
-		parse_context->rc = SQLITE_ERROR;
+		if (parse_context->rc == SQLITE_OK)
+			parse_context->rc = SQLITE_ERROR;
 	}
 }
 /**
@@ -332,14 +333,14 @@ int
 sqlite3CheckIdentifierName(Parse *pParse, char *zName)
 {
 	ssize_t len = strlen(zName);
-
-	if (len > BOX_NAME_MAX || identifier_check(zName, len) != 0) {
-		sqlite3ErrorMsg(pParse,
-				"identifier name is invalid: %s",
-				zName);
-		return SQLITE_ERROR;
+	if (len <= BOX_NAME_MAX && identifier_check(zName, len) == 0)
+		return SQLITE_OK;
+	if (len > BOX_NAME_MAX) {
+		diag_set(ClientError, ER_SQL_INVALID_IDENTIFIER_NAME,
+			 tt_cstr(zName, BOX_INVALID_NAME_MAX));
 	}
-	return SQLITE_OK;
+	sqlite3_error(pParse);
+	return SQLITE_ERROR;
 }
 
 struct index *
@@ -415,8 +416,8 @@ sqlite3StartTable(Parse *pParse, Token *pName, int noErr)
 	struct space *space = space_by_name(zName);
 	if (space != NULL) {
 		if (!noErr) {
-			sqlite3ErrorMsg(pParse, "table %s already exists",
-					zName);
+			diag_set(ClientError, ER_SQL_TABLE_EXISTS, zName);
+			sqlite3_error(pParse);
 		} else {
 			assert(!db->init.busy || CORRUPT_DB);
 		}
@@ -505,8 +506,8 @@ sqlite3AddColumn(Parse * pParse, Token * pName, struct type_def *type_def)
 		return;
 #if SQLITE_MAX_COLUMN
 	if ((int)p->def->field_count + 1 > db->aLimit[SQLITE_LIMIT_COLUMN]) {
-		sqlite3ErrorMsg(pParse, "too many columns on %s",
-				p->def->name);
+		diag_set(ClientError, ER_SQL_TOO_MANY_COLUMNS, p->def->name);
+		sqlite3_error(pParse);
 		return;
 	}
 #endif
@@ -533,7 +534,8 @@ sqlite3AddColumn(Parse * pParse, Token * pName, struct type_def *type_def)
 	sqlite3NormalizeName(z);
 	for (i = 0; i < (int)p->def->field_count; i++) {
 		if (strcmp(z, p->def->fields[i].name) == 0) {
-			sqlite3ErrorMsg(pParse, "duplicate column name: %s", z);
+			diag_set(ClientError, ER_SQL_DUPLICATE_COLUMN_NAME, z);
+			sqlite3_error(pParse);
 			return;
 		}
 	}
@@ -598,9 +600,9 @@ sqlite3AddDefaultValue(Parse * pParse, ExprSpan * pSpan)
 	if (p != 0) {
 		if (!sqlite3ExprIsConstantOrFunction
 		    (pSpan->pExpr, db->init.busy)) {
-			sqlite3ErrorMsg(pParse,
-					"default value of column [%s] is not constant",
-					p->def->fields[p->def->field_count - 1].name);
+			diag_set(ClientError, ER_SQL_NONCONST_DEFAULT_VALUE,
+				 p->def->fields[p->def->field_count - 1].name);
+			sqlite3_error(pParse);
 		} else {
 			assert(p->def != NULL);
 			struct field_def *field =
@@ -667,9 +669,8 @@ sqlite3AddPrimaryKey(Parse * pParse,	/* Parsing context */
 	if (pTab == 0)
 		goto primary_key_exit;
 	if (sql_table_primary_key(pTab) != NULL) {
-		sqlite3ErrorMsg(pParse,
-				"table \"%s\" has more than one primary key",
-				pTab->def->name);
+		diag_set(ClientError, ER_SQL_TOO_MANY_PK, pTab->def->name);
+		sqlite3_error(pParse);
 		goto primary_key_exit;
 	}
 	if (pList == 0) {
@@ -682,8 +683,8 @@ sqlite3AddPrimaryKey(Parse * pParse,	/* Parsing context */
 			    sqlite3ExprSkipCollate(pList->a[i].pExpr);
 			assert(pCExpr != 0);
 			if (pCExpr->op != TK_ID) {
-				sqlite3ErrorMsg(pParse, "expressions prohibited"
-							" in PRIMARY KEY");
+				diag_set(ClientError, ER_SQL_EXPR_IN_PK);
+				sqlite3_error(pParse);
 				goto primary_key_exit;
 			}
 			const char *name = pCExpr->u.zToken;
@@ -715,8 +716,8 @@ sqlite3AddPrimaryKey(Parse * pParse,	/* Parsing context */
 		if (db->mallocFailed)
 			goto primary_key_exit;
 	} else if (autoInc) {
-		sqlite3ErrorMsg(pParse, "AUTOINCREMENT is only allowed on an "
-				"INTEGER PRIMARY KEY or INT PRIMARY KEY");
+		diag_set(ClientError, ER_SQL_AUTOINC_IN_NOT_PK);
+		sqlite3_error(pParse);
 		goto primary_key_exit;
 	} else {
 		sql_create_index(pParse, 0, 0, pList, 0, sortOrder, false,
@@ -1249,9 +1250,8 @@ sqlite3EndTable(Parse * pParse,	/* Parse context */
 
 	if (!p->def->opts.is_view) {
 		if (sql_table_primary_key(p) == NULL) {
-			sqlite3ErrorMsg(pParse,
-					"PRIMARY KEY missing on table %s",
-					p->def->name);
+			diag_set(ClientError, ER_SQL_PK_MISSING, p->def->name);
+			sqlite3_error(pParse);
 			goto cleanup;
 		}
 	}
@@ -1370,8 +1370,8 @@ sql_create_view(struct Parse *parse_context, struct Token *begin,
 	struct sqlite3 *db = parse_context->db;
 	struct Table *sel_tab = NULL;
 	if (parse_context->nVar > 0) {
-		sqlite3ErrorMsg(parse_context,
-				"parameters are not allowed in views");
+		diag_set(ClientError, ER_SQL_PARAMETER_IN_VIEW);
+		sqlite3_error(parse_context);
 		goto create_view_fail;
 	}
 	sqlite3StartTable(parse_context, name, if_exists);
@@ -1383,10 +1383,10 @@ sql_create_view(struct Parse *parse_context, struct Token *begin,
 		goto create_view_fail;
 	if (aliases != NULL) {
 		if ((int)sel_tab->def->field_count != aliases->nExpr) {
-			sqlite3ErrorMsg(parse_context, "expected %d columns "\
-					"for '%s' but got %d", aliases->nExpr,
-					p->def->name,
-					sel_tab->def->field_count);
+			diag_set(ClientError, ER_SQL_WRONG_COLUMN_NUMBER,
+				 aliases->nExpr, p->def->name,
+				 sel_tab->def->field_count);
+			sqlite3_error(parse_context);
 			goto create_view_fail;
 		}
 		sqlite3ColumnsFromExprList(parse_context, aliases, p);
@@ -1697,12 +1697,14 @@ sql_drop_table(struct Parse *parse_context, struct SrcList *table_name_list,
 	const char *space_name = table_name_list->a[0].zName;
 	struct space *space = space_by_name(space_name);
 	if (space == NULL) {
-		if (!is_view && !if_exists)
-			sqlite3ErrorMsg(parse_context, "no such table: %s",
-					space_name);
-		if (is_view && !if_exists)
-			sqlite3ErrorMsg(parse_context, "no such view: %s",
-					space_name);
+		if (!is_view && !if_exists) {
+			diag_set(ClientError, ER_SQL_NO_SUCH_TABLE, space_name);
+			sqlite3_error(parse_context);
+		}
+		if (is_view && !if_exists) {
+			diag_set(ClientError, ER_SQL_NO_SUCH_VIEW, space_name);
+			sqlite3_error(parse_context);
+		}
 		goto exit_drop_table;
 	}
 	/*
@@ -1710,13 +1712,13 @@ sql_drop_table(struct Parse *parse_context, struct SrcList *table_name_list,
 	 * and DROP VIEW is not used on a table.
 	 */
 	if (is_view && !space->def->opts.is_view) {
-		sqlite3ErrorMsg(parse_context, "use DROP TABLE to delete table %s",
-				space_name);
+		diag_set(ClientError, ER_SQL_WRONG_TABLE_DROP, space_name);
+		sqlite3_error(parse_context);
 		goto exit_drop_table;
 	}
 	if (!is_view && space->def->opts.is_view) {
-		sqlite3ErrorMsg(parse_context, "use DROP VIEW to delete view %s",
-				space_name);
+		diag_set(ClientError, ER_SQL_WRONG_VIEW_DROP, space_name);
+		sqlite3_error(parse_context);
 		goto exit_drop_table;
 	}
 	/*
@@ -1862,8 +1864,8 @@ sql_create_foreign_key(struct Parse *parse_context, struct SrcList *child,
 		}
 	} else {
 		if (parent_space->def->opts.is_view) {
-			sqlite3ErrorMsg(parse_context,
-					"referenced table can't be view");
+			diag_set(ClientError, ER_SQL_REFERENCED_VIEW);
+			sqlite3_error(parse_context);
 			goto exit_create_fk;
 		}
 	}
@@ -2257,7 +2259,8 @@ sql_create_index(struct Parse *parse, struct Token *token,
 	}
 
 	if (def->opts.is_view) {
-		sqlite3ErrorMsg(parse, "views can not be indexed");
+		diag_set(ClientError, ER_SQL_INDEXING_VIEW);
+		sqlite3_error(parse);
 		goto exit_create_index;
 	}
 	/*
@@ -2287,9 +2290,9 @@ sql_create_index(struct Parse *parse, struct Token *token,
 			goto exit_create_index;
 		if (sql_space_index_by_name(space, name) != NULL) {
 			if (!if_not_exist) {
-				sqlite3ErrorMsg(parse,
-						"index %s.%s already exists",
-						def->name, name);
+				diag_set(ClientError, ER_SQL_INDEX_EXISTS,
+					 def->name, name);
+				sqlite3_error(parse);
 			}
 			goto exit_create_index;
 		}
@@ -2548,18 +2551,21 @@ sql_drop_index(struct Parse *parse_context, struct SrcList *index_name_list,
 	assert(table_token->n > 0);
 	struct space *space = space_by_name(table_name);
 	if (space == NULL) {
-		if (!if_exists)
-			sqlite3ErrorMsg(parse_context, "no such space: %s",
-					table_name);
+		if (!if_exists) {
+			diag_set(ClientError, ER_SQL_NO_SUCH_TABLE, table_name);
+			sqlite3_error(parse_context);
+		}
 		goto exit_drop_index;
 	}
 	const char *index_name = index_name_list->a[0].zName;
 	uint32_t index_id = box_index_id_by_name(space->def->id, index_name,
 						 strlen(index_name));
 	if (index_id == BOX_ID_NIL) {
-		if (!if_exists)
-			sqlite3ErrorMsg(parse_context, "no such index: %s.%s",
-					table_name, index_name);
+		if (!if_exists) {
+			diag_set(ClientError, ER_SQL_NO_SUCH_INDEX, table_name,
+				 index_name);
+			sqlite3_error(parse_context);
+		}
 		goto exit_drop_index;
 	}
 	struct index *index = space_index(space, index_id);
@@ -2904,9 +2910,9 @@ sqlite3SrcListAppendFromTerm(Parse * pParse,	/* Parsing context */
 	struct SrcList_item *pItem;
 	sqlite3 *db = pParse->db;
 	if (!p && (pOn || pUsing)) {
-		sqlite3ErrorMsg(pParse, "a JOIN clause is required before %s",
-				(pOn ? "ON" : "USING")
-		    );
+		diag_set(ClientError, ER_SQL_JOIN_CLAUSE_BEFORE,
+			 pOn ? "ON" : "USING");
+		sqlite3_error(pParse);
 		goto append_from_error;
 	}
 	p = sqlite3SrcListAppend(db, p, pTable);
@@ -3045,11 +3051,8 @@ sqlite3Savepoint(Parse * pParse, int op, Token * pName)
 			return;
 		}
 		if (op == SAVEPOINT_BEGIN &&
-			sqlite3CheckIdentifierName(pParse, zName)
-				!= SQLITE_OK) {
-			sqlite3ErrorMsg(pParse, "bad savepoint name");
+		    sqlite3CheckIdentifierName(pParse, zName) != SQLITE_OK)
 			return;
-		}
 		sqlite3VdbeAddOp4(v, OP_Savepoint, op, 0, 0, zName, P4_DYNAMIC);
 	}
 }
@@ -3136,9 +3139,9 @@ sqlite3WithAdd(Parse * pParse,	/* Parsing context */
 		int i;
 		for (i = 0; i < pWith->nCte; i++) {
 			if (strcmp(zName, pWith->a[i].zName) == 0) {
-				sqlite3ErrorMsg(pParse,
-						"duplicate WITH table name: %s",
-						zName);
+				diag_set(ClientError, ER_SQL_DUPL_WITH_TBL_NAME,
+					 zName);
+				sqlite3_error(pParse);
 			}
 		}
 	}

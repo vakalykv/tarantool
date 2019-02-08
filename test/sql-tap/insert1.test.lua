@@ -43,7 +43,7 @@ test:do_test("insert-1.3", function()
   return test:catchsql "INSERT INTO test1 VALUES(1,2)"
 end, {
   -- <insert-1.3>
-  1, "table TEST1 has 3 columns but 2 values were supplied"
+  1, "expected 3 columns for 'TEST1' but got 2"
   -- </insert-1.3>
 })
 
@@ -51,7 +51,7 @@ test:do_catchsql_test("insert-1.3b", [[
   INSERT INTO test1 VALUES(1,2,3,4)
 ]], {
   -- <insert-1.3b>
-  1, "table TEST1 has 3 columns but 4 values were supplied"
+  1, "expected 3 columns for 'TEST1' but got 4"
   -- </insert-1.3b>
 })
 
@@ -59,7 +59,7 @@ test:do_catchsql_test("insert-1.3c", [[
   INSERT INTO test1(one,two) VALUES(1,2,3,4)
 ]], {
   -- <insert-1.3c>
-  1, "4 values for 2 columns"
+  1, "2 columns assigned 4 values"
   -- </insert-1.3c>
 })
 
@@ -67,7 +67,7 @@ test:do_catchsql_test("insert-1.3d", [[
   INSERT INTO test1(one,two) VALUES(1)
 ]], {
   -- <insert-1.3d>
-  1, "1 values for 2 columns"
+  1, "2 columns assigned 1 values"
   -- </insert-1.3d>
 })
 
@@ -77,7 +77,7 @@ test:do_catchsql_test("insert-1.4", [[
   INSERT INTO test1(one,four) VALUES(1,2)
 ]], {
   -- <insert-1.4>
-  1, "table TEST1 has no column named FOUR"
+  1, "no such column: TEST1.FOUR"
   -- </insert-1.4>
 })
 
@@ -519,14 +519,14 @@ test:do_catchsql_test(
     [[
         insert into test(a, a, b) values(1, 1, 1)
     ]],
-    {1, "table id list: duplicate column name A"})
+    {1, "duplicate column name: A"})
 
 test:do_catchsql_test(
     "insert-13.2",
     [[
         insert into test(a, b, b) values(1, 1, 1)
     ]],
-    {1, "table id list: duplicate column name B"})
+    {1, "duplicate column name: B"})
 
 test:do_execsql_test(
     "insert-13.3",

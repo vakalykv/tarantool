@@ -3262,12 +3262,12 @@ void sqlite3TreeViewWith(TreeView *, const With *);
 #endif
 
 void sqlite3SetString(char **, sqlite3 *, const char *);
-void sqlite3ErrorMsg(Parse *, const char *, ...);
 void sqlite3Dequote(char *);
 void sqlite3NormalizeName(char *z);
 void sqlite3TokenInit(Token *, char *);
 int sqlite3KeywordCode(const unsigned char *, int);
 int sqlite3RunParser(Parse *, const char *, char **);
+void sqlite3_error(Parse * pParse);
 
 /**
  * This routine is called after a single SQL statement has been
@@ -4879,7 +4879,6 @@ int sqlite3ExprVectorSize(Expr * pExpr);
 int sqlite3ExprIsVector(Expr * pExpr);
 Expr *sqlite3VectorFieldSubexpr(Expr *, int);
 Expr *sqlite3ExprForVectorField(Parse *, Expr *, int);
-void sqlite3VectorErrorMsg(Parse *, Expr *);
 
 /* Tarantool: right now query compilation is invoked on top of
  * fiber's stack. Need to limit number of nested programs under

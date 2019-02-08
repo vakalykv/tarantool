@@ -325,8 +325,8 @@ sqlite3Insert(Parse * pParse,	/* Parser context */
 	struct space_def *def = pTab->def;
 	/* Cannot insert into a read-only table. */
 	if (is_view && tmask == 0) {
-		sqlite3ErrorMsg(pParse, "cannot modify %s because it is a view",
-				def->name);
+		diag_set(ClientError, ER_SQL_CANNOT_MODIFY_VIEW, def->name);
+		sqlite3_error(pParse);
 		goto insert_cleanup;
 	}
 
@@ -391,16 +391,17 @@ sqlite3Insert(Parse * pParse,	/* Parser context */
 				}
 			}
 			if (j >= (int) def->field_count) {
-				sqlite3ErrorMsg(pParse,
-						"table %S has no column named %s",
-						pTabList, 0, pColumn->a[i].zName);
+				diag_set(ClientError, ER_SQL_NO_SUCH_COLUMN_2,
+					 pTabList->a[0].zName,
+					 pColumn->a[i].zName);
+				sqlite3_error(pParse);
 				goto insert_cleanup;
 			}
 			if (bit_test(used_columns, j)) {
-				const char *err;
-				err = "table id list: duplicate column name %s";
-				sqlite3ErrorMsg(pParse,
-						err, pColumn->a[i].zName);
+				diag_set(ClientError,
+					 ER_SQL_DUPLICATE_COLUMN_NAME,
+					 pColumn->a[i].zName);
+				sqlite3_error(pParse);
 				goto insert_cleanup;
 			}
 			bit_set(used_columns, j);
@@ -510,14 +511,15 @@ sqlite3Insert(Parse * pParse,	/* Parser context */
 	}
 
 	if (pColumn == 0 && nColumn && nColumn != (int)def->field_count) {
-		sqlite3ErrorMsg(pParse,
-				"table %S has %d columns but %d values were supplied",
-				pTabList, 0, def->field_count, nColumn);
+		diag_set(ClientError, ER_SQL_WRONG_COLUMN_NUMBER,
+			 def->field_count, pTabList->a[0].zName, nColumn);
+		sqlite3_error(pParse);
 		goto insert_cleanup;
 	}
 	if (pColumn != 0 && nColumn != pColumn->nId) {
-		sqlite3ErrorMsg(pParse, "%d values for %d columns", nColumn,
-				pColumn->nId);
+		diag_set(ClientError, ER_SQL_WRONG_VALUE_COUNT, pColumn->nId,
+			 nColumn);
+		sqlite3_error(pParse);
 		goto insert_cleanup;
 	}
 

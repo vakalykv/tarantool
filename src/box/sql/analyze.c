@@ -1123,9 +1123,9 @@ sqlite3Analyze(Parse * pParse, Token * pName)
 			struct space *sp = space_by_name(z);
 			if (sp != NULL) {
 				if (sp->def->opts.is_view) {
-					sqlite3ErrorMsg(pParse, "VIEW isn't "\
-							"allowed to be "\
-							"analyzed");
+					diag_set(ClientError,
+						 ER_SQL_CANNOT_ANALYZE_VIEW);
+					sqlite3_error(pParse);
 				} else {
 					vdbe_emit_analyze_table(pParse, sp);
 				}

@@ -397,18 +397,19 @@ sqlite3JoinType(Parse * pParse, Token * pA, Token * pB, Token * pC)
 	}
 	if ((jointype & (JT_INNER | JT_OUTER)) == (JT_INNER | JT_OUTER) ||
 	    (jointype & JT_ERROR) != 0) {
-		const char *zSp = " ";
-		assert(pB != 0);
-		if (pC == 0) {
-			zSp++;
+		if (pC != NULL) {
+			diag_set(ClientError, ER_SQL_UNKNOWN_JOIN_2,
+				 pA->n, pA->z, pB->n, pB->z, pC->n, pC->z);
+		} else {
+			diag_set(ClientError, ER_SQL_UNKNOWN_JOIN,
+				 pA->n, pA->z, pB->n, pB->z);
 		}
-		sqlite3ErrorMsg(pParse, "unknown or unsupported join type: "
-				"%T %T%s%T", pA, pB, zSp, pC);
+		sqlite3_error(pParse);
 		jointype = JT_INNER;
 	} else if ((jointype & JT_OUTER) != 0
 		   && (jointype & (JT_LEFT | JT_RIGHT)) != JT_LEFT) {
-		sqlite3ErrorMsg(pParse,
-				"RIGHT and FULL OUTER JOINs are not currently supported");
+		diag_set(ClientError, ER_SQL_UNSUPPORTED_JOIN);
+		sqlite3_error(pParse);
 		jointype = JT_INNER;
 	}
 	return jointype;
@@ -590,9 +591,9 @@ sqliteProcessJoin(Parse * pParse, Select * p)
 		 */
 		if (pRight->fg.jointype & JT_NATURAL) {
 			if (pRight->pOn || pRight->pUsing) {
-				sqlite3ErrorMsg(pParse,
-						"a NATURAL join may not have "
-						"an ON or USING clause", 0);
+				diag_set(ClientError,
+					 ER_SQL_NATURAL_JOIN_ON_USING);
+				sqlite3_error(pParse);
 				return 1;
 			}
 			for (j = 0; j < (int)pRightTab->def->field_count; j++) {
@@ -613,8 +614,8 @@ sqliteProcessJoin(Parse * pParse, Select * p)
 		/* Disallow both ON and USING clauses in the same join
 		 */
 		if (pRight->pOn && pRight->pUsing) {
-			sqlite3ErrorMsg(pParse, "cannot have both ON and USING "
-					"clauses in the same join");
+			diag_set(ClientError, ER_SQL_JOIN_BOTH_ON_USING);
+			sqlite3_error(pParse);
 			return 1;
 		}
 
@@ -650,10 +651,10 @@ sqliteProcessJoin(Parse * pParse, Select * p)
 				    || !tableAndColumnIndex(pSrc, i + 1, zName,
 							    &iLeft, &iLeftCol)
 				    ) {
-					sqlite3ErrorMsg(pParse,
-							"cannot join using column %s - column "
-							"not present in both tables",
-							zName);
+					diag_set(ClientError,
+						 ER_SQL_CANNOT_JOIN_USING_COL,
+						 zName);
+					sqlite3_error(pParse);
 					return 1;
 				}
 				addWhereTerm(pParse, pSrc, iLeft, iLeftCol,
@@ -2083,8 +2084,9 @@ computeLimitRegisters(Parse * pParse, Select * p, int iBreak)
 		if((p->pLimit->flags & EP_Collate) != 0 ||
 		   (p->pOffset != NULL &&
 		   (p->pOffset->flags & EP_Collate) != 0)) {
-			sqlite3ErrorMsg(pParse, "near \"COLLATE\": "\
-						"syntax error");
+			diag_set(ClientError, ER_SQL_SYNTAX_ERROR,
+				 strlen("COLLATE") + 1, "COLLATE");
+			sqlite3_error(pParse);
 			return;
 		}
 		p->iLimit = iLimit = ++pParse->nMem;
@@ -2451,8 +2453,8 @@ generateWithRecursiveQuery(Parse * pParse,	/* Parsing context */
 	 * the value for the recursive-table. Store the results in the Queue.
 	 */
 	if (p->selFlags & SF_Aggregate) {
-		sqlite3ErrorMsg(pParse,
-				"recursive aggregate queries not supported");
+		diag_set(ClientError, ER_SQL_RECURS_AGG_QUERY);
+		sqlite3_error(pParse);
 	} else {
 		p->pPrior = 0;
 		sqlite3Select(pParse, p, &destQueue);
@@ -2585,16 +2587,16 @@ multiSelect(Parse * pParse,	/* Parsing context */
 	pPrior = p->pPrior;
 	dest = *pDest;
 	if (pPrior->pOrderBy) {
-		sqlite3ErrorMsg(pParse,
-				"ORDER BY clause should come after %s not before",
-				selectOpName(p->op));
+		diag_set(ClientError, ER_SQL_CLAUSE_GO_AFTER, "ORDER BY",
+			 selectOpName(p->op));
+		sqlite3_error(pParse);
 		rc = 1;
 		goto multi_select_end;
 	}
 	if (pPrior->pLimit) {
-		sqlite3ErrorMsg(pParse,
-				"LIMIT clause should come after %s not before",
-				selectOpName(p->op));
+		diag_set(ClientError, ER_SQL_CLAUSE_GO_AFTER, "LIMIT",
+			 selectOpName(p->op));
+		sqlite3_error(pParse);
 		rc = 1;
 		goto multi_select_end;
 	}
@@ -2976,13 +2978,12 @@ void
 sqlite3SelectWrongNumTermsError(struct Parse *parse, struct Select * p)
 {
 	if (p->selFlags & SF_Values) {
-		sqlite3ErrorMsg(parse, "all VALUES must have the same number "\
-				"of terms");
+		diag_set(ClientError, ER_SQL_EQUAL_NUM_VAL_TERMS);
 	} else {
-		sqlite3ErrorMsg(parse, "SELECTs to the left and right of %s "
-				"do not have the same number of result columns",
-				selectOpName(p->op));
+		diag_set(ClientError, ER_SQL_WRONG_COL_NUM,
+			 selectOpName(p->op));
 	}
+	sqlite3_error(parse);
 }
 
 /**
@@ -3608,7 +3609,16 @@ substExpr(Parse * pParse,	/* Report errors here */
 			assert(pEList != 0 && pExpr->iColumn < pEList->nExpr);
 			assert(pExpr->pLeft == 0 && pExpr->pRight == 0);
 			if (sqlite3ExprIsVector(pCopy)) {
-				sqlite3VectorErrorMsg(pParse, pCopy);
+				if (pCopy->flags & EP_xIsSelect) {
+					diag_set(ClientError,
+						 ER_SQL_WRONG_COLUMN_COUNT,
+						 pCopy->x.pSelect->pEList->nExpr,
+						 1);
+				} else {
+					diag_set(ClientError,
+						 ER_SQL_MISUSE_OF_ROW_VALUE);
+				}
+				sqlite3_error(pParse);
 			} else {
 				pNew = sqlite3ExprDup(db, pCopy, 0);
 				if (pNew && (pExpr->flags & EP_FromJoin)) {
@@ -4426,8 +4436,9 @@ sqlite3IndexedByLookup(Parse * pParse, struct SrcList_item *pFrom)
 			}
 		}
 		if (idx == NULL) {
-			sqlite3ErrorMsg(pParse, "no such index: %s", zIndexedBy,
-					0);
+			diag_set(ClientError, ER_SQL_NO_SUCH_INDEX_2,
+				 zIndexedBy);
+			sqlite3_error(pParse);
 			return SQLITE_ERROR;
 		}
 		pFrom->pIBIndex = idx->def;
@@ -4528,7 +4539,8 @@ static int
 cannotBeFunction(Parse * pParse, struct SrcList_item *pFrom)
 {
 	if (pFrom->fg.isTabFunc) {
-		sqlite3ErrorMsg(pParse, "'%s' is not a function", pFrom->zName);
+		diag_set(ClientError, ER_SQL_IS_NOT_A_FUNCTION, pFrom->zName);
+		sqlite3_error(pParse);
 		return 1;
 	}
 	return 0;
@@ -4629,7 +4641,9 @@ withExpand(Walker * pWalker, struct SrcList_item *pFrom)
 		 * In this case, proceed.
 		 */
 		if (pCte->zCteErr) {
-			sqlite3ErrorMsg(pParse, pCte->zCteErr, pCte->zName);
+			diag_set(ClientError, ER_SQL_WITH_EXPAND, pCte->zCteErr,
+				 pCte->zName);
+			sqlite3_error(pParse);
 			return SQLITE_ERROR;
 		}
 		if (cannotBeFunction(pParse, pFrom))
@@ -4671,16 +4685,16 @@ withExpand(Walker * pWalker, struct SrcList_item *pFrom)
 
 		/* Only one recursive reference is permitted. */
 		if (pTab->nTabRef > 2) {
-			sqlite3ErrorMsg(pParse,
-					"multiple references to recursive table: %s",
-					pCte->zName);
+			diag_set(ClientError, ER_SQL_MULTIPLE_REFS_REC_TBL,
+				 pCte->zName);
+			sqlite3_error(pParse);
 			return SQLITE_ERROR;
 		}
 		assert(pTab->nTabRef == 1
 		       || ((pSel->selFlags & SF_Recursive)
 			   && pTab->nTabRef == 2));
 
-		pCte->zCteErr = "circular reference: %s";
+		pCte->zCteErr = "circular reference";
 		pSavedWith = pParse->pWith;
 		pParse->pWith = pWith;
 		sqlite3WalkSelect(pWalker, bMayRecursive ? pSel->pPrior : pSel);
@@ -4690,10 +4704,10 @@ withExpand(Walker * pWalker, struct SrcList_item *pFrom)
 		pEList = pLeft->pEList;
 		if (pCte->pCols) {
 			if (pEList && pEList->nExpr != pCte->pCols->nExpr) {
-				sqlite3ErrorMsg(pParse,
-						"table %s has %d values for %d columns",
-						pCte->zName, pEList->nExpr,
-						pCte->pCols->nExpr);
+				diag_set(ClientError, ER_SQL_TBL_VALS_COLS,
+					 pCte->zName, pEList->nExpr,
+					 pCte->pCols->nExpr);
+				sqlite3_error(pParse);
 				pParse->pWith = pSavedWith;
 				return SQLITE_ERROR;
 			}
@@ -4705,10 +4719,10 @@ withExpand(Walker * pWalker, struct SrcList_item *pFrom)
 		if (bMayRecursive) {
 			if (pSel->selFlags & SF_Recursive) {
 				pCte->zCteErr =
-				    "multiple recursive references: %s";
+				    "multiple recursive references";
 			} else {
 				pCte->zCteErr =
-				    "recursive reference in a subquery: %s";
+				    "recursive reference in a subquery";
 			}
 			sqlite3WalkSelect(pWalker, pSel);
 		}
@@ -5065,12 +5079,14 @@ selectExpander(Walker * pWalker, Select * p)
 				}
 				if (!tableSeen) {
 					if (zTName) {
-						sqlite3ErrorMsg(pParse,
-								"no such table: %s",
-								zTName);
+						diag_set(ClientError,
+							 ER_SQL_NO_SUCH_TABLE,
+							 zTName);
+						sqlite3_error(pParse);
 					} else {
-						sqlite3ErrorMsg(pParse,
-								"no tables specified");
+						diag_set(ClientError,
+							 ER_SQL_TABLE_NOT_SPECIFIED);
+						sqlite3_error(pParse);
 					}
 				}
 			}
@@ -5080,7 +5096,8 @@ selectExpander(Walker * pWalker, Select * p)
 	}
 #if SQLITE_MAX_COLUMN
 	if (p->pEList && p->pEList->nExpr > db->aLimit[SQLITE_LIMIT_COLUMN]) {
-		sqlite3ErrorMsg(pParse, "too many columns in result set");
+		diag_set(ClientError, ER_SQL_TOO_MANY_COLUMNS_RES);
+		sqlite3_error(pParse);
 		return WRC_Abort;
 	}
 #endif
@@ -5267,9 +5284,9 @@ resetAccumulator(Parse * pParse, AggInfo * pAggInfo)
 			Expr *pE = pFunc->pExpr;
 			assert(!ExprHasProperty(pE, EP_xIsSelect));
 			if (pE->x.pList == 0 || pE->x.pList->nExpr != 1) {
-				sqlite3ErrorMsg(pParse,
-						"DISTINCT aggregates must have exactly one "
-						"argument");
+				diag_set(ClientError,
+					 ER_SQL_DISTINCT_ADD_ONE_ARG);
+				sqlite3_error(pParse);
 				pFunc->iDistinct = -1;
 			} else {
 				struct sql_key_info *key_info =
@@ -5540,10 +5557,10 @@ sqlite3Select(Parse * pParse,		/* The parser context */
 		 * columns in the SELECT on the RHS
 		 */
 		if ((int)pTab->def->field_count != pSub->pEList->nExpr) {
-			sqlite3ErrorMsg(pParse,
-					"expected %d columns for '%s' but got %d",
-					pTab->def->field_count, pTab->def->name,
-					pSub->pEList->nExpr);
+			diag_set(ClientError, ER_SQL_WRONG_COLUMN_NUMBER,
+				 pTab->def->field_count, pTab->def->name,
+				 pSub->pEList->nExpr);
+			sqlite3_error(pParse);
 			goto select_end;
 		}
 

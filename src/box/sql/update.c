@@ -140,8 +140,9 @@ sqlite3Update(Parse * pParse,		/* The parser context */
 		goto update_cleanup;
 	}
 	if (is_view && tmask == 0) {
-		sqlite3ErrorMsg(pParse, "cannot modify %s because it is a view",
-				pTab->def->name);
+		diag_set(ClientError, ER_SQL_CANNOT_MODIFY_VIEW,
+			 pTab->def->name);
+		sqlite3_error(pParse);
 		goto update_cleanup;
 	}
 
@@ -179,10 +180,10 @@ sqlite3Update(Parse * pParse,		/* The parser context */
 				    sql_space_column_is_in_pk(pTab->space, j))
 					is_pk_modified = true;
 				if (aXRef[j] != -1) {
-					sqlite3ErrorMsg(pParse,
-							"set id list: duplicate"
-							" column name %s",
-							pChanges->a[i].zName);
+					diag_set(ClientError,
+						 ER_SQL_SET_ID_DUPLICATE_COL,
+						 pChanges->a[i].zName);
+					sqlite3_error(pParse);
 					goto update_cleanup;
 				}
 				aXRef[j] = i;
@@ -191,8 +192,9 @@ sqlite3Update(Parse * pParse,		/* The parser context */
 			}
 		}
 		if (j >= (int)def->field_count) {
-			sqlite3ErrorMsg(pParse, "no such column: %s",
-					pChanges->a[i].zName);
+			diag_set(ClientError, ER_SQL_NO_SUCH_COLUMN,
+				 pChanges->a[i].zName);
+			sqlite3_error(pParse);
 			goto update_cleanup;
 		}
 	}

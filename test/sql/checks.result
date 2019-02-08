@@ -111,7 +111,7 @@ s = box.space._space:insert(t)
 --
 box.sql.execute("CREATE TABLE w2 (s1 INT PRIMARY KEY, CHECK ((SELECT COUNT(*) FROM w2) = 0));")
 ---
-- error: 'Failed to create space ''W2'': SQL error: no such table: W2'
+- error: 'Failed to create space ''W2'': no such table: W2'
 ...
 box.sql.execute("DROP TABLE w2;")
 ---

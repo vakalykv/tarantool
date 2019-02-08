@@ -588,7 +588,8 @@ codeVectorCompare(Parse * pParse,	/* Code generator context */
 	int addrDone = sqlite3VdbeMakeLabel(v);
 
 	if (nLeft != sqlite3ExprVectorSize(pRight)) {
-		sqlite3ErrorMsg(pParse, "row value misused");
+		diag_set(ClientError, ER_SQL_MISUSE_OF_ROW_VALUE);
+		sqlite3_error(pParse);
 		return;
 	}
 	assert(pExpr->op == TK_EQ || pExpr->op == TK_NE
@@ -673,9 +674,8 @@ sqlite3ExprCheckHeight(Parse * pParse, int nHeight)
 	int rc = SQLITE_OK;
 	int mxHeight = pParse->db->aLimit[SQLITE_LIMIT_EXPR_DEPTH];
 	if (nHeight > mxHeight) {
-		sqlite3ErrorMsg(pParse,
-				"Expression tree is too large (maximum depth %d)",
-				mxHeight);
+		diag_set(ClientError, ER_SQL_TOO_LARGE_EXPR_TREE, mxHeight);
+		sqlite3_error(pParse);
 		rc = SQLITE_ERROR;
 	}
 	return rc;
@@ -1117,9 +1117,9 @@ sqlite3ExprAssignVarNumber(Parse * pParse, Expr * pExpr, u32 n)
 			testcase(i == SQL_BIND_PARAMETER_MAX - 1);
 			testcase(i == SQL_BIND_PARAMETER_MAX);
 			if (!is_ok || i < 1 || i > SQL_BIND_PARAMETER_MAX) {
-				sqlite3ErrorMsg(pParse,
-						"variable number must be between $1 and $%d",
-						SQL_BIND_PARAMETER_MAX);
+				diag_set(ClientError, ER_SQL_OUT_OF_RANGE_2,
+					 SQL_BIND_PARAMETER_MAX);
+				sqlite3_error(pParse);
 				return;
 			}
 			if (x > pParse->nVar) {
@@ -1147,7 +1147,8 @@ sqlite3ExprAssignVarNumber(Parse * pParse, Expr * pExpr, u32 n)
 	}
 	pExpr->iColumn = x;
 	if (x > SQL_BIND_PARAMETER_MAX) {
-		sqlite3ErrorMsg(pParse, "too many SQL variables");
+		diag_set(ClientError, ER_SQL_TOO_MANY_VARIABLES);
+		sqlite3_error(pParse);
 	}
 }
 
@@ -1702,8 +1703,9 @@ sqlite3ExprListAppendVector(Parse * pParse,	/* Parsing context */
 	 */
 	if (pExpr->op != TK_SELECT
 	    && pColumns->nId != (n = sqlite3ExprVectorSize(pExpr))) {
-		sqlite3ErrorMsg(pParse, "%d columns assigned %d values",
-				pColumns->nId, n);
+		diag_set(ClientError, ER_SQL_WRONG_VALUE_COUNT, pColumns->nId,
+			 n);
+		sqlite3_error(pParse);
 		goto vector_append_error;
 	}
 
@@ -1823,7 +1825,8 @@ sqlite3ExprListCheckLength(Parse * pParse,
 	testcase(pEList && pEList->nExpr == mx);
 	testcase(pEList && pEList->nExpr == mx + 1);
 	if (pEList && pEList->nExpr > mx) {
-		sqlite3ErrorMsg(pParse, "too many columns in %s", zObject);
+		diag_set(ClientError, ER_SQL_TOO_MANY_COLUMNS, zObject);
+		sqlite3_error(pParse);
 	}
 }
 
@@ -2590,41 +2593,6 @@ expr_in_type(Parse *pParse, Expr *pExpr)
 }
 
 /*
- * Load the Parse object passed as the first argument with an error
- * message of the form:
- *
- *   "sub-select returns N columns - expected M"
- */
-void
-sqlite3SubselectError(Parse * pParse, int nActual, int nExpect)
-{
-	const char *zFmt = "sub-select returns %d columns - expected %d";
-	sqlite3ErrorMsg(pParse, zFmt, nActual, nExpect);
-}
-
-/*
- * Expression pExpr is a vector that has been used in a context where
- * it is not permitted. If pExpr is a sub-select vector, this routine
- * loads the Parse object with a message of the form:
- *
- *   "sub-select returns N columns - expected 1"
- *
- * Or, if it is a regular scalar vector:
- *
- *   "row value misused"
- */
-void
-sqlite3VectorErrorMsg(Parse * pParse, Expr * pExpr)
-{
-	if (pExpr->flags & EP_xIsSelect) {
-		sqlite3SubselectError(pParse, pExpr->x.pSelect->pEList->nExpr,
-				      1);
-	} else {
-		sqlite3ErrorMsg(pParse, "row value misused");
-	}
-}
-
-/*
  * Generate code for scalar subqueries used as a subquery expression, EXISTS,
  * or IN operators.  Examples:
  *
@@ -2904,13 +2872,20 @@ sqlite3ExprCheckIN(Parse * pParse, Expr * pIn)
 	int nVector = sqlite3ExprVectorSize(pIn->pLeft);
 	if ((pIn->flags & EP_xIsSelect)) {
 		if (nVector != pIn->x.pSelect->pEList->nExpr) {
-			sqlite3SubselectError(pParse,
-					      pIn->x.pSelect->pEList->nExpr,
-					      nVector);
+			diag_set(ClientError, ER_SQL_WRONG_COLUMN_COUNT,
+				 pIn->x.pSelect->pEList->nExpr, nVector);
+			sqlite3_error(pParse);
 			return 1;
 		}
 	} else if (nVector != 1) {
-		sqlite3VectorErrorMsg(pParse, pIn->pLeft);
+		if (pIn->pLeft->flags & EP_xIsSelect) {
+			diag_set(ClientError, ER_SQL_WRONG_COLUMN_COUNT,
+				 pIn->pLeft->x.pSelect->pEList->nExpr, 1);
+		} else {
+			diag_set(ClientError,
+				 ER_SQL_MISUSE_OF_ROW_VALUE);
+		}
+		sqlite3_error(pParse);
 		return 1;
 	}
 	return 0;
@@ -3261,14 +3236,14 @@ expr_code_int(struct Parse *parse, struct Expr *expr, bool is_neg,
 		if (c == 1 || (c == 2 && !is_neg) ||
 		    (is_neg && value == SMALLEST_INT64)) {
 			if (sqlite3_strnicmp(z, "0x", 2) == 0) {
-				sqlite3ErrorMsg(parse,
-						"hex literal too big: %s%s",
-						is_neg ? "-" : "", z);
+				diag_set(ClientError,
+					 ER_SQL_HEX_LITERAL_TOO_BIG,
+					 is_neg ? "-" : "", z);
 			} else {
-				sqlite3ErrorMsg(parse,
-						"oversized integer: %s%s",
-						is_neg ? "-" : "", z);
+				diag_set(ClientError, ER_SQL_OVERSIZED_INTEGER,
+					 is_neg ? "-" : "", z);
 			}
+			sqlite3_error(parse);
 		} else {
 			if (is_neg)
 				value = c == 2 ? SMALLEST_INT64 : -value;
@@ -3904,9 +3879,9 @@ sqlite3ExprCodeTarget(Parse * pParse, Expr * pExpr, int target)
 			AggInfo *pInfo = pExpr->pAggInfo;
 			if (pInfo == 0) {
 				assert(!ExprHasProperty(pExpr, EP_IntValue));
-				sqlite3ErrorMsg(pParse,
-						"misuse of aggregate: %s()",
-						pExpr->u.zToken);
+				diag_set(ClientError, ER_SQL_MISUSE_OF_AGG_2,
+					 pExpr->u.zToken);
+				sqlite3_error(pParse);
 			} else {
 				pExpr->type = pInfo->aFunc->pFunc->ret_type;
 				return pInfo->aFunc[pExpr->iAgg].iMem;
@@ -3940,8 +3915,9 @@ sqlite3ExprCodeTarget(Parse * pParse, Expr * pExpr, int target)
 			}
 #endif
 			if (pDef == 0 || pDef->xFinalize != 0) {
-				sqlite3ErrorMsg(pParse,
-						"unknown function: %s()", zId);
+				diag_set(ClientError, ER_SQL_UNKNOWN_FUNCTION,
+					 zId);
+				sqlite3_error(pParse);
 				break;
 			}
 
@@ -4070,7 +4046,9 @@ sqlite3ExprCodeTarget(Parse * pParse, Expr * pExpr, int target)
 			testcase(op == TK_SELECT);
 			if (op == TK_SELECT
 			    && (nCol = pExpr->x.pSelect->pEList->nExpr) != 1) {
-				sqlite3SubselectError(pParse, nCol, 1);
+				diag_set(ClientError, ER_SQL_WRONG_COLUMN_COUNT,
+					 nCol, 1);
+				sqlite3_error(pParse);
 			} else {
 				return sqlite3CodeSubselect(pParse, pExpr, 0);
 			}
@@ -4089,9 +4067,10 @@ sqlite3ExprCodeTarget(Parse * pParse, Expr * pExpr, int target)
 						 sqlite3ExprVectorSize(pExpr->
 								       pLeft))
 			    ) {
-				sqlite3ErrorMsg(pParse,
-						"%d columns assigned %d values",
-						pExpr->iTable, n);
+				diag_set(ClientError, ER_SQL_WRONG_VALUE_COUNT,
+					 pExpr->iTable, n);
+				sqlite3_error(pParse);
+
 			}
 			return pExpr->pLeft->iTable + pExpr->iColumn;
 		}
@@ -4190,7 +4169,8 @@ sqlite3ExprCodeTarget(Parse * pParse, Expr * pExpr, int target)
 		}
 
 	case TK_VECTOR:{
-			sqlite3ErrorMsg(pParse, "row value misused");
+			diag_set(ClientError, ER_SQL_MISUSE_OF_ROW_VALUE);
+			sqlite3_error(pParse);
 			break;
 		}
 
@@ -4290,8 +4270,8 @@ sqlite3ExprCodeTarget(Parse * pParse, Expr * pExpr, int target)
 		}
 	case TK_RAISE:
 		if (pParse->pTriggerTab == NULL) {
-			sqlite3ErrorMsg(pParse, "RAISE() may only be used "
-					"within a trigger-program");
+			diag_set(ClientError, ER_SQL_RAISE_NOT_IN_TRIG_PROG);
+			sqlite3_error(pParse);
 			return 0;
 		}
 		if (pExpr->on_conflict_action == ON_CONFLICT_ACTION_ABORT)

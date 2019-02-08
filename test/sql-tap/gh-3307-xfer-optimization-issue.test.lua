@@ -85,7 +85,7 @@ test:do_catchsql_xfer_test(
         INSERT INTO t2 SELECT * FROM t1;
     ]], {
         -- <xfer-optimization-1.5>
-        1, "table T2 has 2 columns but 3 values were supplied"
+        1, "expected 2 columns for 'T2' but got 3"
         -- <xfer-optimization-1.5>
     }, {
         exp_xfer_count = 0

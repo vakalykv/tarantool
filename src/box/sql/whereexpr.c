@@ -1490,9 +1490,9 @@ sqlite3WhereTabFuncArgs(Parse * pParse,	/* Parsing context */
 			k++;
 		}
 		if (k >= (int)pTab->def->field_count) {
-			sqlite3ErrorMsg(pParse,
-					"too many arguments on %s() - max %d",
-					pTab->def->name, j);
+			diag_set(ClientError, ER_SQL_TOO_MANY_ARGS,
+				 pTab->def->name, j);
+			sqlite3_error(pParse);
 			return;
 		}
 		pColRef = sqlite3ExprAlloc(pParse->db, TK_COLUMN, 0, 0);

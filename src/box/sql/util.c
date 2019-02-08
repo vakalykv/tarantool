@@ -210,40 +210,14 @@ sqlite3ErrorWithMsg(sqlite3 * db, int err_code, const char *zFormat, ...)
 	}
 }
 
-/*
- * Add an error message to pParse->zErrMsg and increment pParse->nErr.
- * The following formatting characters are allowed:
- *
- *      %s      Insert a string
- *      %z      A string that should be freed after use
- *      %d      Insert an integer
- *      %T      Insert a token
- *      %S      Insert the first element of a SrcList
- *
- * This function should be used to report any error that occurs while
- * compiling an SQL statement (i.e. within sqlite3_prepare()). The
- * last thing the sqlite3_prepare() function does is copy the error
- * stored by this function into the database handle using sqlite3Error().
- * Functions sqlite3Error() or sqlite3ErrorWithMsg() should be used
- * during statement execution (sqlite3_step() etc.).
- */
 void
-sqlite3ErrorMsg(Parse * pParse, const char *zFormat, ...)
+sqlite3_error(Parse * pParse)
 {
-	char *zMsg;
-	va_list ap;
 	sqlite3 *db = pParse->db;
-	va_start(ap, zFormat);
-	zMsg = sqlite3VMPrintf(db, zFormat, ap);
-	va_end(ap);
-	if (db->suppressErr) {
-		sqlite3DbFree(db, zMsg);
-	} else {
-		pParse->nErr++;
-		sqlite3DbFree(db, pParse->zErrMsg);
-		pParse->zErrMsg = zMsg;
-		pParse->rc = SQLITE_ERROR;
-	}
+	if (db->suppressErr)
+		return;
+	pParse->nErr++;
+	pParse->rc = SQL_TARANTOOL_ERROR;
 }
 
 /*

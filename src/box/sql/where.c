@@ -3916,7 +3916,8 @@ wherePathSolver(WhereInfo * pWInfo, LogEst nRowEst)
 	}
 
 	if (nFrom == 0) {
-		sqlite3ErrorMsg(pParse, "no query solution");
+		diag_set(ClientError, ER_SQL_NO_QUERY_SOLUTION);
+		sqlite3_error(pParse);
 		sqlite3DbFree(db, pSpace);
 		return SQLITE_ERROR;
 	}
@@ -4288,7 +4289,8 @@ sqlite3WhereBegin(Parse * pParse,	/* The parser context */
 	 */
 	testcase(pTabList->nSrc == BMS);
 	if (pTabList->nSrc > BMS) {
-		sqlite3ErrorMsg(pParse, "at most %d tables in a join", BMS);
+		diag_set(ClientError, ER_SQL_TOO_MUCH_TO_JOIN, BMS);
+		sqlite3_error(pParse);
 		return 0;
 	}
 

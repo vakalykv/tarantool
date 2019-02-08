@@ -393,14 +393,16 @@ lookupName(Parse * pParse,	/* The parsing context */
 					pOrig = pEList->a[j].pExpr;
 					if ((pNC->ncFlags & NC_AllowAgg) == 0
 					    && ExprHasProperty(pOrig, EP_Agg)) {
-						sqlite3ErrorMsg(pParse,
-								"misuse of aliased aggregate %s",
-								zAs);
+						diag_set(ClientError,
+							 ER_SQL_MISUSE_OF_AGG,
+							 zAs);
+						sqlite3_error(pParse);
 						return WRC_Abort;
 					}
 					if (sqlite3ExprVectorSize(pOrig) != 1) {
-						sqlite3ErrorMsg(pParse,
-								"row value misused");
+						diag_set(ClientError,
+							 ER_SQL_MISUSE_OF_ROW_VALUE);
+						sqlite3_error(pParse);
 						return WRC_Abort;
 					}
 					resolveAlias(pParse, pEList, j, pExpr,
@@ -427,13 +429,19 @@ lookupName(Parse * pParse,	/* The parsing context */
 	 * more matches.  Either way, we have an error.
 	 */
 	if (cnt != 1) {
-		const char *zErr;
-		zErr = cnt == 0 ? "no such column" : "ambiguous column name";
-		if (zTab) {
-			sqlite3ErrorMsg(pParse, "%s: %s.%s", zErr, zTab, zCol);
+		if (zTab != NULL && cnt == 0) {
+			diag_set(ClientError, ER_SQL_NO_SUCH_COLUMN_2, zTab,
+				 zCol);
+		} else if (zTab == NULL && cnt == 0) {
+			diag_set(ClientError, ER_SQL_NO_SUCH_COLUMN, zCol);
+		} else if (zTab != NULL) {
+			diag_set(ClientError, ER_SQL_AMBIGUOUS_COLUMN_NAME_2,
+				 zTab, zCol);
 		} else {
-			sqlite3ErrorMsg(pParse, "%s: %s", zErr, zCol);
+			diag_set(ClientError, ER_SQL_AMBIGUOUS_COLUMN_NAME,
+				 zCol);
 		}
+		sqlite3_error(pParse);
 		pTopNC->nErr++;
 	}
 
@@ -521,7 +529,8 @@ notValid(Parse * pParse,	/* Leave error message here */
 			zIn = "CHECK constraints";
 		else
 			unreachable();
-		sqlite3ErrorMsg(pParse, "%s prohibited in %s", zMsg, zIn);
+		diag_set(ClientError, ER_SQL_PROHIBITED_IN, zMsg, zIn);
+		sqlite3_error(pParse);
 	}
 }
 
@@ -646,9 +655,9 @@ resolveExprStep(Walker * pWalker, Expr * pExpr)
 						    exprProbability(pList->a[1].
 								    pExpr);
 						if (pExpr->iTable < 0) {
-							sqlite3ErrorMsg(pParse,
-									"second argument to likelihood() must be a "
-									"constant between 0.0 and 1.0");
+							diag_set(ClientError,
+								 ER_SQL_LIKELIHOOD_SEC_ARG);
+							sqlite3_error(pParse);
 							pNC->nErr++;
 						}
 					} else {
@@ -688,9 +697,9 @@ resolveExprStep(Walker * pWalker, Expr * pExpr)
 				}
 			}
 			if (is_agg && (pNC->ncFlags & NC_AllowAgg) == 0) {
-				sqlite3ErrorMsg(pParse,
-						"misuse of aggregate function %.*s()",
-						nId, zId);
+				diag_set(ClientError, ER_SQL_MISUSE_OF_AGG_FUNC,
+					 nId, zId);
+				sqlite3_error(pParse);
 				pNC->nErr++;
 				is_agg = 0;
 			} else if (no_such_func && pParse->db->init.busy == 0
@@ -698,14 +707,14 @@ resolveExprStep(Walker * pWalker, Expr * pExpr)
 				   && pParse->explain == 0
 #endif
 			    ) {
-				sqlite3ErrorMsg(pParse,
-						"no such function: %.*s", nId,
-						zId);
+				diag_set(ClientError, ER_SQL_NO_SUCH_FUNC, nId,
+					 zId);
+				sqlite3_error(pParse);
 				pNC->nErr++;
 			} else if (wrong_num_args) {
-				sqlite3ErrorMsg(pParse,
-						"wrong number of arguments to function %.*s()",
-						nId, zId);
+				diag_set(ClientError,
+					 ER_SQL_WRONG_NUMBER_OF_ARG, nId, zId);
+				sqlite3_error(pParse);
 				pNC->nErr++;
 			}
 			if (is_agg)
@@ -797,7 +806,9 @@ resolveExprStep(Walker * pWalker, Expr * pExpr)
 				testcase(pExpr->op == TK_GT);
 				testcase(pExpr->op == TK_GE);
 				testcase(pExpr->op == TK_BETWEEN);
-				sqlite3ErrorMsg(pParse, "row value misused");
+				diag_set(ClientError,
+					 ER_SQL_MISUSE_OF_ROW_VALUE);
+				sqlite3_error(pParse);
 			}
 			break;
 		}
@@ -905,21 +916,6 @@ resolveOrderByTermToExprList(Parse * pParse,	/* Parsing context for error messag
 }
 
 /*
- * Generate an ORDER BY or GROUP BY term out-of-range error.
- */
-static void
-resolveOutOfRangeError(Parse * pParse,	/* The error context into which to write the error */
-		       const char *zType,	/* "ORDER" or "GROUP" */
-		       int i,	/* The index (1-based) of the term out of range */
-		       int mx	/* Largest permissible value of i */
-    )
-{
-	sqlite3ErrorMsg(pParse,
-			"%r %s BY term out of range - should be "
-			"between 1 and %d", i, zType, mx);
-}
-
-/*
  * Analyze the ORDER BY clause in a compound SELECT statement.   Modify
  * each term of the ORDER BY clause is a constant integer between 1
  * and N where N is the number of columns in the compound SELECT.
@@ -951,7 +947,8 @@ resolveCompoundOrderBy(Parse * pParse,	/* Parsing context.  Leave error messages
 	db = pParse->db;
 #if SQLITE_MAX_COLUMN
 	if (pOrderBy->nExpr > db->aLimit[SQLITE_LIMIT_COLUMN]) {
-		sqlite3ErrorMsg(pParse, "too many terms in ORDER BY clause");
+		diag_set(ClientError, ER_SQL_TOO_MANY_TERMS, "ORDER");
+		sqlite3_error(pParse);
 		return 1;
 	}
 #endif
@@ -977,9 +974,10 @@ resolveCompoundOrderBy(Parse * pParse,	/* Parsing context.  Leave error messages
 			pE = sqlite3ExprSkipCollate(pItem->pExpr);
 			if (sqlite3ExprIsInteger(pE, &iCol)) {
 				if (iCol <= 0 || iCol > pEList->nExpr) {
-					resolveOutOfRangeError(pParse, "ORDER",
-							       i + 1,
-							       pEList->nExpr);
+					diag_set(ClientError,
+						 ER_SQL_OUT_OF_RANGE, "ORDER",
+						 pEList->nExpr);
+					sqlite3_error(pParse);
 					return 1;
 				}
 			} else {
@@ -1025,9 +1023,8 @@ resolveCompoundOrderBy(Parse * pParse,	/* Parsing context.  Leave error messages
 	}
 	for (i = 0; i < pOrderBy->nExpr; i++) {
 		if (pOrderBy->a[i].done == 0) {
-			sqlite3ErrorMsg(pParse,
-					"%r ORDER BY term does not match any "
-					"column in the result set", i + 1);
+			diag_set(ClientError, ER_SQL_DOES_NOT_MATCH);
+			sqlite3_error(pParse);
 			return 1;
 		}
 	}
@@ -1060,8 +1057,8 @@ sqlite3ResolveOrderGroupBy(Parse * pParse,	/* Parsing context.  Leave error mess
 		return 0;
 #if SQLITE_MAX_COLUMN
 	if (pOrderBy->nExpr > db->aLimit[SQLITE_LIMIT_COLUMN]) {
-		sqlite3ErrorMsg(pParse, "too many terms in %s BY clause",
-				zType);
+		diag_set(ClientError, ER_SQL_TOO_MANY_TERMS, zType);
+		sqlite3_error(pParse);
 		return 1;
 	}
 #endif
@@ -1070,8 +1067,9 @@ sqlite3ResolveOrderGroupBy(Parse * pParse,	/* Parsing context.  Leave error mess
 	for (i = 0, pItem = pOrderBy->a; i < pOrderBy->nExpr; i++, pItem++) {
 		if (pItem->u.x.iOrderByCol) {
 			if (pItem->u.x.iOrderByCol > pEList->nExpr) {
-				resolveOutOfRangeError(pParse, zType, i + 1,
-						       pEList->nExpr);
+				diag_set(ClientError, ER_SQL_OUT_OF_RANGE,
+					 zType, pEList->nExpr);
+				sqlite3_error(pParse);
 				return 1;
 			}
 			resolveAlias(pParse, pEList, pItem->u.x.iOrderByCol - 1,
@@ -1137,8 +1135,9 @@ resolveOrderGroupBy(NameContext * pNC,	/* The name context of the SELECT stateme
 			 * order-by term to a copy of the result-set expression
 			 */
 			if (iCol < 1 || iCol > 0xffff) {
-				resolveOutOfRangeError(pParse, zType, i + 1,
-						       nResult);
+				diag_set(ClientError, ER_SQL_OUT_OF_RANGE,
+					 zType, nResult);
+				sqlite3_error(pParse);
 				return 1;
 			}
 			pItem->u.x.iOrderByCol = (u16) iCol;
@@ -1418,9 +1417,9 @@ resolveSelectStep(Walker * pWalker, Select * p)
 			for (i = 0, pItem = pGroupBy->a; i < pGroupBy->nExpr;
 			     i++, pItem++) {
 				if (ExprHasProperty(pItem->pExpr, EP_Agg)) {
-					sqlite3ErrorMsg(pParse,
-							"aggregate functions are not allowed in "
-							"the GROUP BY clause");
+					diag_set(ClientError,
+						 ER_SQL_AGG_FUNC_IN_GROUP_BY);
+					sqlite3_error(pParse);
 					return WRC_Abort;
 				}
 			}

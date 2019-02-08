@@ -42,7 +42,8 @@ sql_lookup_table(struct Parse *parse, struct SrcList_item *tbl_name)
 	assert(tbl_name->pTab == NULL);
 	struct space *space = space_by_name(tbl_name->zName);
 	if (space == NULL) {
-		sqlite3ErrorMsg(parse, "no such table: %s", tbl_name->zName);
+		diag_set(ClientError, ER_SQL_NO_SUCH_TABLE, tbl_name->zName);
+		sqlite3_error(parse);
 		return NULL;
 	}
 	assert(space != NULL);
@@ -167,8 +168,9 @@ sql_table_delete_from(struct Parse *parse, struct SrcList *tab_list,
 			goto delete_from_cleanup;
 
 		if (trigger_list == NULL) {
-			sqlite3ErrorMsg(parse, "cannot modify %s because it is a"
-					" view", space->def->name);
+			diag_set(ClientError, ER_SQL_CANNOT_MODIFY_VIEW,
+				 space->def->name);
+			sqlite3_error(parse);
 			goto delete_from_cleanup;
 		}
 	}
