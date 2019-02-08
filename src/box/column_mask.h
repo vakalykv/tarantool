@@ -50,7 +50,9 @@
  * in such case we set not one bit, but a range of bits.
  */
 
-#define COLUMN_MASK_FULL UINT64_MAX
+#define COLUMN_MASK_FULL	UINT64_MAX
+#define COLUMN_MASK_BIT(n)	(((uint64_t)1)<<(n))
+#define COLUMN_MASK_SIZE	((int)(sizeof(uint64_t)*8))
 
 /**
  * Set a bit in the bitmask corresponding to a
@@ -61,14 +63,14 @@
 static inline void
 column_mask_set_fieldno(uint64_t *column_mask, uint32_t fieldno)
 {
-	if (fieldno >= 63)
+	if (fieldno >= COLUMN_MASK_SIZE - 1)
 		/*
 		 * @sa column_mask key_def declaration for
 		 * details.
 		 */
-		*column_mask |= ((uint64_t) 1) << 63;
+		*column_mask |= COLUMN_MASK_BIT(COLUMN_MASK_SIZE - 1);
 	else
-		*column_mask |= ((uint64_t) 1) << fieldno;
+		*column_mask |= COLUMN_MASK_BIT(fieldno);
 }
 
 /**
@@ -80,7 +82,7 @@ column_mask_set_fieldno(uint64_t *column_mask, uint32_t fieldno)
 static inline void
 column_mask_set_range(uint64_t *column_mask, uint32_t first_fieldno_in_range)
 {
-	if (first_fieldno_in_range < 63) {
+	if (first_fieldno_in_range < COLUMN_MASK_SIZE - 1) {
 		/*
 		 * Set all bits by default via COLUMN_MASK_FULL
 		 * and then unset bits preceding the operation
@@ -90,8 +92,33 @@ column_mask_set_range(uint64_t *column_mask, uint32_t first_fieldno_in_range)
 		*column_mask |= COLUMN_MASK_FULL << first_fieldno_in_range;
 	} else {
 		/* A range outside "short" range. */
-		*column_mask |= ((uint64_t) 1) << 63;
+		*column_mask |= COLUMN_MASK_BIT(COLUMN_MASK_SIZE - 1);
 	}
+}
+
+/**
+ * Test if overflow flag set in mask.
+ * @param column_mask Mask to test.
+ * @retval true If mask overflowed, false otherwise.
+ */
+static inline bool
+column_mask_is_overflowed(uint64_t column_mask)
+{
+	return column_mask & COLUMN_MASK_BIT(COLUMN_MASK_SIZE - 1);
+}
+
+/**
+ * Test a bit in the bitmask corresponding to a column fieldno.
+ * @param column_mask Mask to test.
+ * @param fieldno Fieldno number to test (index base must be 0).
+ * @retval true If bit corresponding to a column fieldno.
+ * @retval false if bit is not set or fieldno > COLUMN_MASK_SIZE.
+ */
+static inline bool
+column_mask_fieldno_is_set(uint64_t column_mask, uint32_t fieldno)
+{
+	return fieldno < COLUMN_MASK_SIZE &&
+	       (column_mask & COLUMN_MASK_BIT(fieldno)) != 0;
 }
 
 /**
