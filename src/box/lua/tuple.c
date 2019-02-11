@@ -108,8 +108,17 @@ lbox_tuple_new(lua_State *L)
 		      luamp_error, L);
 
 	if (argc == 1 && (lua_istable(L, 1) || luaT_istuple(L, 1))) {
+		/**
+		 * Disable storage optimization for excessively
+		 * sparse arrays as a tuple always must be regular
+		 * MP_ARRAY.
+		 */
+		int encode_sparse_ratio =
+			luaL_msgpack_default->encode_sparse_ratio;
+		luaL_msgpack_default->encode_sparse_ratio = 0;
 		/* New format: box.tuple.new({1, 2, 3}) */
 		luamp_encode_tuple(L, luaL_msgpack_default, &stream, 1);
+		luaL_msgpack_default->encode_sparse_ratio = encode_sparse_ratio;
 	} else {
 		/* Backward-compatible format: box.tuple.new(1, 2, 3). */
 		mpstream_encode_array(&stream, argc);
