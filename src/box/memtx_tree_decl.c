@@ -60,7 +60,7 @@ struct memtx_tuple_tree_key_data {
 #define MEMTX_TREE_KEY_GET(key_ptr, part_count_ptr)				\
 	({*part_count_ptr = (key_ptr)->part_count; (key_ptr)->key;})
 
-#include "memtx_tree.c"
+#include "memtx_tree_impl.h"
 
 #undef memtx_tree_key
 #undef memtx_tree_elem
