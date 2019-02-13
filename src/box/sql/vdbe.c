@@ -666,7 +666,6 @@ int sqlite3VdbeExec(Vdbe *p)
 	p->iCurrentTime = 0;
 	assert(p->explain==0);
 	p->pResultSet = 0;
-	db->busyHandler.nBusy = 0;
 	if (db->u1.isInterrupted) goto abort_due_to_interrupt;
 	sqlite3VdbeIOTraceSql(p);
 #ifndef SQLITE_OMIT_PROGRESS_CALLBACK

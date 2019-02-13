@@ -464,7 +464,6 @@ sqlite3Pragma(Parse * pParse, Token * pId,	/* First part of [schema.]id field */
 		zRight = sqlite3NameFromToken(db, pValue);
 	}
 	zTable = sqlite3NameFromToken(db, pValue2);
-	db->busyHandler.nBusy = 0;
 
 	/* Locate the pragma in the lookup table */
 	pPragma = pragmaLocate(zLeft);
@@ -644,24 +643,9 @@ sqlite3Pragma(Parse * pParse, Token * pId,	/* First part of [schema.]id field */
 		break;
 	}
 
-	/* *   PRAGMA busy_timeout *   PRAGMA busy_timeout = N *
-	 *
-	 * Call sqlite3_busy_timeout(db, N).  Return the current
-	 * timeout value * if one is set.  If no busy handler
-	 * or a different busy handler is set * then 0 is
-	 * returned.  Setting the busy_timeout to 0 or negative *
-	 * disables the timeout.
-	 */
-	/* case PragTyp_BUSY_TIMEOUT */
-	default:{
-			assert(pPragma->ePragTyp == PragTyp_BUSY_TIMEOUT);
-			if (zRight) {
-				sqlite3_busy_timeout(db, sqlite3Atoi(zRight));
-			}
-			returnSingleInt(v, db->busyTimeout);
-			break;
-		}
-	}			/* End of the PRAGMA switch */
+	default:
+		unreachable();
+	}
 
 	/* The following block is a no-op unless SQLITE_DEBUG is
 	 * defined. Its only * purpose is to execute assert()

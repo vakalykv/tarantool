@@ -329,7 +329,6 @@ struct sqlite3_vfs {
 		      int flags, int *pOutFlags);
 	int (*xDelete) (sqlite3_vfs *, const char *zName, int syncDir);
 	int (*xRandomness) (sqlite3_vfs *, int nByte, char *zOut);
-	int (*xSleep) (sqlite3_vfs *, int microseconds);
 	int (*xCurrentTime) (sqlite3_vfs *, double *);
 	int (*xGetLastError) (sqlite3_vfs *, int, char *);
 	/*
@@ -825,7 +824,6 @@ struct sqlite3_io_methods {
 #define SQLITE_FCNTL_VFSNAME                11
 #define SQLITE_FCNTL_POWERSAFE_OVERWRITE    12
 #define SQLITE_FCNTL_PRAGMA                 13
-#define SQLITE_FCNTL_BUSYHANDLER            14
 #define SQLITE_FCNTL_TEMPFILENAME           15
 #define SQLITE_FCNTL_MMAP_SIZE              16
 #define SQLITE_FCNTL_TRACE                  17
@@ -834,9 +832,6 @@ struct sqlite3_io_methods {
 
 int
 sqlite3_os_init(void);
-
-int
-sqlite3_busy_timeout(sqlite3 *, int ms);
 
 sqlite3_int64
 sqlite3_soft_heap_limit64(sqlite3_int64 N);
@@ -1311,22 +1306,6 @@ extern const int sqlite3one;
 #endif
 
 /*
- * An instance of the following structure is used to store the busy-handler
- * callback for a given sqlite handle.
- *
- * The sqlite.busyHandler member of the sqlite struct contains the busy
- * callback for the database handle. Each pager opened via the sqlite
- * handle is passed a pointer to sqlite.busyHandler. The busy-handler
- * callback is currently invoked only from within pager.c.
- */
-typedef struct BusyHandler BusyHandler;
-struct BusyHandler {
-	int (*xFunc) (void *, int);	/* The busy callback */
-	void *pArg;		/* First arg to busy callback */
-	int nBusy;		/* Incremented with each busy call */
-};
-
-/*
  * A convenience macro that returns the number of elements in
  * an array.
  */
@@ -1554,8 +1533,6 @@ struct sqlite3 {
 	unsigned nProgressOps;	/* Number of opcodes for progress callback */
 #endif
 	Hash aFunc;		/* Hash table of connection functions */
-	BusyHandler busyHandler;	/* Busy callback */
-	int busyTimeout;	/* Busy handler timeout, in msec */
 	int *pnBytesFreed;	/* If not NULL, increment this in DbFree() */
 };
 

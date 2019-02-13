@@ -5,7 +5,6 @@
  */
 
 /* The various pragma types */
-#define PragTyp_BUSY_TIMEOUT                   1
 #define PragTyp_CASE_SENSITIVE_LIKE            2
 #define PragTyp_COLLATION_LIST                 3
 #define PragTyp_FLAG                           5
@@ -67,8 +66,6 @@ static const char *const pragCName[] = {
 	/*  26 */ "on_update",
 	/*  27 */ "on_delete",
 	/*  28 */ "match",
-	/* Used by: busy_timeout */
-	/*  29 */ "timeout",
 };
 
 /* Definitions of all built-in pragmas */
@@ -85,11 +82,6 @@ typedef struct PragmaName {
  * to be sorted. For more info see pragma_locate function.
  */
 static const PragmaName aPragmaName[] = {
-	{ /* zName:     */ "busy_timeout",
-	 /* ePragTyp:  */ PragTyp_BUSY_TIMEOUT,
-	 /* ePragFlg:  */ PragFlg_Result0,
-	 /* ColNames:  */ 29, 1,
-	 /* iArg:      */ 0},
 	{ /* zName:     */ "case_sensitive_like",
 	 /* ePragTyp:  */ PragTyp_CASE_SENSITIVE_LIKE,
 	 /* ePragFlg:  */ PragFlg_NoColumns,

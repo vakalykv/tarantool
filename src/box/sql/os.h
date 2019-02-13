@@ -146,7 +146,6 @@ int sqlite3OsUnfetch(sqlite3_file *, i64, void *);
  */
 int sqlite3OsOpen(sqlite3_vfs *, const char *, sqlite3_file *, int, int *);
 int sqlite3OsRandomness(sqlite3_vfs *, int, char *);
-int sqlite3OsSleep(sqlite3_vfs *, int);
 int sqlite3OsGetLastError(sqlite3_vfs *);
 int sqlite3OsCurrentTimeInt64(sqlite3_vfs *, sqlite3_int64 *);
 

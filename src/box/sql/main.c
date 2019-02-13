@@ -640,43 +640,6 @@ sqlite3ErrStr(int rc)
 	return zErr;
 }
 
-/*
- * This routine implements a busy callback that sleeps and tries
- * again until a timeout value is reached.  The timeout value is
- * an integer number of milliseconds passed in as the first
- * argument.
- */
-static int
-sqliteDefaultBusyCallback(void *ptr,	/* Database connection */
-			  int count)	/* Number of times table has been busy */
-{
-	sqlite3 *db = (sqlite3 *) ptr;
-	int timeout = ((sqlite3 *) ptr)->busyTimeout;
-	if ((count + 1) * 1000 > timeout) {
-		return 0;
-	}
-	sqlite3OsSleep(db->pVfs, 1000000);
-	return 1;
-}
-
-/*
- * This routine sets the busy callback for an Sqlite database to the
- * given callback function with the given argument.
- */
-int
-sqlite3_busy_handler(sqlite3 * db, int (*xBusy) (void *, int), void *pArg)
-{
-#ifdef SQLITE_ENABLE_API_ARMOR
-	if (!sqlite3SafetyCheckOk(db))
-		return SQLITE_MISUSE_BKPT;
-#endif
-	db->busyHandler.xFunc = xBusy;
-	db->busyHandler.pArg = pArg;
-	db->busyHandler.nBusy = 0;
-	db->busyTimeout = 0;
-	return SQLITE_OK;
-}
-
 #ifndef SQLITE_OMIT_PROGRESS_CALLBACK
 /*
  * This routine sets the progress callback for an Sqlite database to the
@@ -704,26 +667,6 @@ sqlite3_progress_handler(sqlite3 * db,
 	}
 }
 #endif
-
-/*
- * This routine installs a default busy handler that waits for the
- * specified number of milliseconds before returning 0.
- */
-int
-sqlite3_busy_timeout(sqlite3 * db, int ms)
-{
-#ifdef SQLITE_ENABLE_API_ARMOR
-	if (!sqlite3SafetyCheckOk(db))
-		return SQLITE_MISUSE_BKPT;
-#endif
-	if (ms > 0) {
-		sqlite3_busy_handler(db, sqliteDefaultBusyCallback, (void *)db);
-		db->busyTimeout = ms;
-	} else {
-		sqlite3_busy_handler(db, 0, 0);
-	}
-	return SQLITE_OK;
-}
 
 /*
  * Cause any pending operation to stop at its earliest opportunity.
@@ -1675,25 +1618,6 @@ sqlite3IoerrnomemError(int lineno)
 	return reportError(SQLITE_IOERR_NOMEM, lineno, "I/O OOM error");
 }
 #endif
-
-/*
- * Sleep for a little while.  Return the amount of time slept.
- */
-int
-sqlite3_sleep(int ms)
-{
-	sqlite3_vfs *pVfs;
-	int rc;
-	pVfs = sqlite3_vfs_find(0);
-	if (pVfs == 0)
-		return 0;
-
-	/* This function works in milliseconds, but the underlying OsSleep()
-	 * API uses microseconds. Hence the 1000's.
-	 */
-	rc = (sqlite3OsSleep(pVfs, 1000 * ms) / 1000);
-	return rc;
-}
 
 /*
  * Enable or disable the extended result codes.

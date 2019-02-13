@@ -129,12 +129,6 @@ sqlite3OsRandomness(sqlite3_vfs * pVfs, int nByte, char *zBufOut)
 }
 
 int
-sqlite3OsSleep(sqlite3_vfs * pVfs, int nMicro)
-{
-	return pVfs->xSleep(pVfs, nMicro);
-}
-
-int
 sqlite3OsGetLastError(sqlite3_vfs * pVfs)
 {
 	return pVfs->xGetLastError ? pVfs->xGetLastError(pVfs, 0, 0) : 0;
