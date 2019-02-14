@@ -371,7 +371,8 @@ s = box.schema.space.create('test', {engine = 'vinyl'})
 _ = s:create_index('pk', {run_count_per_level = 10})
 _ = s:create_index('sk', {unique = false, parts = {2, 'unsigned'}})
 s:replace{1, 10}
-s:replace{10, 100} -- to prevent last-level compaction (gh-3657)
+-- Some padding to prevent last-level compaction (gh-3657).
+for i = 1001, 1010 do s:replace{i, i} end
 box.snapshot()
 s:replace{1, 20}
 box.snapshot()
@@ -407,3 +408,23 @@ test_run:cmd("delete server replica")
 errinj.set('ERRINJ_VYRUN_INDEX_GARBAGE', false)
 box.schema.user.revoke('guest', 'replication')
 s:drop()
+
+--
+-- Check that tarantool stops immediately even if a vinyl worker
+-- thread is blocked (see gh-3225).
+--
+s = box.schema.space.create('test', {engine = 'vinyl'})
+_ = s:create_index('pk')
+s:replace{1, 1}
+box.snapshot()
+
+errinj.set('ERRINJ_VY_READ_PAGE_TIMEOUT', 9000)
+_ = fiber.create(function() s:get(1) end)
+
+s:replace{1, 2}
+
+errinj.set('ERRINJ_VY_RUN_WRITE_STMT_TIMEOUT', 9000)
+_ = fiber.create(function() box.snapshot() end)
+
+test_run:cmd("restart server default")
+box.space.test:drop()

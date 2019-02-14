@@ -1,6 +1,6 @@
 #!/usr/bin/env tarantool
 test = require("sqltester")
-test:plan(67)
+test:plan(65)
 
 --!./tcltestrunner.lua
 -- 2014 January 11
@@ -13,7 +13,7 @@ test:plan(67)
 --    May you share freely, never taking more than you give.
 --
 -------------------------------------------------------------------------
--- This file implements regression tests for SQLite library.  The
+-- This file implements regression tests for sql library.  The
 -- focus of this file is testing the WITH clause.
 --
 -- ["set","testdir",[["file","dirname",["argv0"]]]]
@@ -663,8 +663,6 @@ limit_test(9.4, 20, -1)
 limit_test(9.5, 5, 5)
 limit_test(9.6, 0, -1)
 limit_test(9.7, 40, -1)
-limit_test(9.8, -1, -1)
-limit_test(9.9, -1, -1)
 -- #--------------------------------------------------------------------------
 -- # Test the ORDER BY clause on recursive tables.
 -- #

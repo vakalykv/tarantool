@@ -119,6 +119,11 @@ struct vy_range {
 	bool needs_compaction;
 	/** Number of times the range was compacted. */
 	int n_compactions;
+	/**
+	 * Number of dumps it takes to trigger major compaction in
+	 * this range, see vy_run::dump_count for more details.
+	 */
+	int dumps_per_compaction;
 	/** Link in vy_lsm->tree. */
 	rb_node(struct vy_range) tree_node;
 	/** Link in vy_lsm->range_heap. */
@@ -243,16 +248,22 @@ vy_range_update_compaction_priority(struct vy_range *range,
 				    const struct index_opts *opts);
 
 /**
+ * Update the value of range->dumps_per_compaction.
+ */
+void
+vy_range_update_dumps_per_compaction(struct vy_range *range);
+
+/**
  * Check if a range needs to be split in two.
  *
  * @param range             The range.
- * @param opts              Index options.
+ * @param range_size        Target range size.
  * @param[out] p_split_key  Key to split the range by.
  *
  * @retval true             If the range needs to be split.
  */
 bool
-vy_range_needs_split(struct vy_range *range, const struct index_opts *opts,
+vy_range_needs_split(struct vy_range *range, int64_t range_size,
 		     const char **p_split_key);
 
 /**
@@ -261,7 +272,7 @@ vy_range_needs_split(struct vy_range *range, const struct index_opts *opts,
  *
  * @param range         The range.
  * @param tree          The range tree.
- * @param opts          Index options.
+ * @param range_size    Target range size.
  * @param[out] p_first  The first range in the tree to coalesce.
  * @param[out] p_last   The last range in the tree to coalesce.
  *
@@ -269,8 +280,8 @@ vy_range_needs_split(struct vy_range *range, const struct index_opts *opts,
  */
 bool
 vy_range_needs_coalesce(struct vy_range *range, vy_range_tree_t *tree,
-			const struct index_opts *opts,
-			struct vy_range **p_first, struct vy_range **p_last);
+			int64_t range_size, struct vy_range **p_first,
+			struct vy_range **p_last);
 
 #if defined(__cplusplus)
 } /* extern "C" */

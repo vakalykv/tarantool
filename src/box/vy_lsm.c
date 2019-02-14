@@ -54,6 +54,20 @@
 #include "vy_history.h"
 #include "vy_read_set.h"
 
+/*
+ * It doesn't make much sense to create too small ranges as this
+ * would make the overhead associated with file creation prominent
+ * and increase the number of open files. So we never create ranges
+ * less than 16 MB.
+ */
+static const int64_t VY_MIN_RANGE_SIZE = 16 * 1024 * 1024;
+
+/**
+ * We want a single compaction job to finish in reasonable time
+ * so we limit the range size to 2 GB.
+ */
+static const int64_t VY_MAX_RANGE_SIZE = 2LL * 1024 * 1024 * 1024;
+
 int
 vy_lsm_env_create(struct vy_lsm_env *env, const char *path,
 		  int64_t *p_generation,
@@ -353,6 +367,7 @@ vy_lsm_recover_run(struct vy_lsm *lsm, struct vy_run_recovery_info *run_info,
 		return NULL;
 
 	run->dump_lsn = run_info->dump_lsn;
+	run->dump_count = run_info->dump_count;
 	if (vy_run_recover(run, lsm->env->path,
 			   lsm->space_id, lsm->index_id) != 0 &&
 	    (!force_recovery ||
@@ -638,6 +653,7 @@ vy_lsm_recover(struct vy_lsm *lsm, struct vy_recovery *recovery,
 					    (long long)range->id));
 			return -1;
 		}
+		vy_range_update_dumps_per_compaction(range);
 		vy_lsm_acct_range(lsm, range);
 	}
 	if (prev == NULL) {
@@ -672,6 +688,31 @@ vy_lsm_compaction_priority(struct vy_lsm *lsm)
 		return 0;
 	struct vy_range *range = container_of(n, struct vy_range, heap_node);
 	return range->compaction_priority;
+}
+
+int64_t
+vy_lsm_range_size(struct vy_lsm *lsm)
+{
+	/* Use the configured range size if available. */
+	if (lsm->opts.range_size > 0)
+		return lsm->opts.range_size;
+	/*
+	 * Ideally, we want to compact roughly the same amount of
+	 * data after each dump so as to avoid IO bursts caused by
+	 * simultaneous major compaction of a bunch of ranges,
+	 * because such IO bursts can lead to a deviation of the
+	 * LSM tree from the configured shape and, as a result,
+	 * increased read amplification. To achieve that, we need
+	 * to have at least as many ranges as the number of dumps
+	 * it takes to trigger major compaction in a range. We
+	 * create four times more than that for better smoothing.
+	 */
+	int range_count = 4 * vy_lsm_dumps_per_compaction(lsm);
+	int64_t range_size = range_count == 0 ? 0 :
+		lsm->stat.disk.last_level_count.bytes / range_count;
+	range_size = MAX(range_size, VY_MIN_RANGE_SIZE);
+	range_size = MIN(range_size, VY_MAX_RANGE_SIZE);
+	return range_size;
 }
 
 void
@@ -753,6 +794,7 @@ void
 vy_lsm_acct_range(struct vy_lsm *lsm, struct vy_range *range)
 {
 	histogram_collect(lsm->run_hist, range->slice_count);
+	lsm->sum_dumps_per_compaction += range->dumps_per_compaction;
 	vy_disk_stmt_counter_add(&lsm->stat.disk.compaction.queue,
 				 &range->compaction_queue);
 	lsm->env->compaction_queue_size += range->compaction_queue.bytes;
@@ -770,6 +812,7 @@ void
 vy_lsm_unacct_range(struct vy_lsm *lsm, struct vy_range *range)
 {
 	histogram_discard(lsm->run_hist, range->slice_count);
+	lsm->sum_dumps_per_compaction -= range->dumps_per_compaction;
 	vy_disk_stmt_counter_sub(&lsm->stat.disk.compaction.queue,
 				 &range->compaction_queue);
 	lsm->env->compaction_queue_size -= range->compaction_queue.bytes;
@@ -1032,7 +1075,8 @@ vy_lsm_split_range(struct vy_lsm *lsm, struct vy_range *range)
 	struct tuple_format *key_format = lsm->env->key_format;
 
 	const char *split_key_raw;
-	if (!vy_range_needs_split(range, &lsm->opts, &split_key_raw))
+	if (!vy_range_needs_split(range, vy_lsm_range_size(lsm),
+				  &split_key_raw))
 		return false;
 
 	/* Split a range in two parts. */
@@ -1078,6 +1122,7 @@ vy_lsm_split_range(struct vy_lsm *lsm, struct vy_range *range)
 		}
 		part->needs_compaction = range->needs_compaction;
 		vy_range_update_compaction_priority(part, &lsm->opts);
+		vy_range_update_dumps_per_compaction(part);
 	}
 
 	/*
@@ -1139,7 +1184,7 @@ bool
 vy_lsm_coalesce_range(struct vy_lsm *lsm, struct vy_range *range)
 {
 	struct vy_range *first, *last;
-	if (!vy_range_needs_coalesce(range, lsm->tree, &lsm->opts,
+	if (!vy_range_needs_coalesce(range, lsm->tree, vy_lsm_range_size(lsm),
 				     &first, &last))
 		return false;
 
@@ -1195,6 +1240,7 @@ vy_lsm_coalesce_range(struct vy_lsm *lsm, struct vy_range *range)
 	 * as it fits the configured LSM tree shape.
 	 */
 	vy_range_update_compaction_priority(result, &lsm->opts);
+	vy_range_update_dumps_per_compaction(result);
 	vy_lsm_acct_range(lsm, result);
 	vy_lsm_add_range(lsm, result);
 	lsm->range_tree_version++;

@@ -16,7 +16,7 @@ testprefix = "analyze9"
 --
 -------------------------------------------------------------------------
 --
--- This file contains automated tests used to verify that the sqlite_stat4
+-- This file contains automated tests used to verify that the sql_stat4
 -- functionality is working.
 --
 
@@ -57,6 +57,9 @@ msgpack_decode_sample = function(txt)
             decoded_str = decoded_str.." "..msgpack.decode(txt)[i]
         end
         i = i+1
+    end
+    if type(decoded_str) == "number" then
+        return tostring(decoded_str)
     end
     return decoded_str
 end
@@ -332,7 +335,7 @@ test:do_execsql_test(
 test:do_execsql_test(
     4.7,
     [[
-        SELECT count(*) FROM "_sql_stat4" WHERE msgpack_decode_sample("sample") IN (34, 68, 102, 136, 170, 204, 238, 272);
+        SELECT count(*) FROM "_sql_stat4" WHERE lrange(msgpack_decode_sample("sample"), 1, 1) IN ('34', '68', '102', '136', '170', '204', '238', '272');
     ]], {
         -- <4.7>
         8
@@ -367,13 +370,13 @@ test:do_execsql_test(
         SELECT msgpack_decode_sample("sample") FROM "_sql_stat4";
     ]], {
         -- <4.9>
-        "x", 1110, 2230, 2750, 3350, 4090, 4470, 4980, 5240, 5280, 5290, 5590, 5920, 
-        5930, 6220, 6710, 7000, 7710, 7830, 7970, 8890, 8950, 9240, 9250, 9680
+        "x", "1110", "2230", "2750", "3350", "4090", "4470", "4980", "5240", "5280", "5290", "5590", "5920",
+        "5930", "6220", "6710", "7000", "7710", "7830", "7970", "8890", "8950", "9240", "9250", "9680"
         -- </4.9>
     })
 
 ---------------------------------------------------------------------------
--- This was also crashing (corrupt sqlite_stat4 table).
+-- This was also crashing (corrupt sql_stat4 table).
 
 test:do_execsql_test(
     6.1,

@@ -130,7 +130,7 @@ tuple_extract_key_slowpath(const struct tuple *tuple,
 			field = tuple_field_raw(format, data, field_map,
 						key_def->parts[i].fieldno);
 		} else {
-			field = tuple_field_by_part_raw(format, data, field_map,
+			field = tuple_field_raw_by_part(format, data, field_map,
 							&key_def->parts[i]);
 		}
 		if (has_optional_parts && field == NULL) {
@@ -177,7 +177,7 @@ tuple_extract_key_slowpath(const struct tuple *tuple,
 			field = tuple_field_raw(format, data, field_map,
 						key_def->parts[i].fieldno);
 		} else {
-			field = tuple_field_by_part_raw(format, data, field_map,
+			field = tuple_field_raw_by_part(format, data, field_map,
 							&key_def->parts[i]);
 		}
 		if (has_optional_parts && field == NULL) {
@@ -309,7 +309,7 @@ tuple_extract_key_slowpath_raw(const char *data, const char *data_end,
 		const char *src = field;
 		const char *src_end = field_end;
 		if (has_json_paths && part->path != NULL) {
-			if (tuple_field_go_to_path(&src, part->path,
+			if (tuple_go_to_path(&src, part->path,
 						   part->path_len) != 0) {
 				/*
 				 * The path must be correct as

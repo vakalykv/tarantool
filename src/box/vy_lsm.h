@@ -251,6 +251,8 @@ struct vy_lsm {
 	vy_range_tree_t *tree;
 	/** Number of ranges in this LSM tree. */
 	int range_count;
+	/** Sum dumps_per_compaction across all ranges. */
+	int sum_dumps_per_compaction;
 	/** Heap of ranges, prioritized by compaction_priority. */
 	heap_t range_heap;
 	/**
@@ -351,6 +353,16 @@ vy_lsm_is_empty(struct vy_lsm *lsm)
 }
 
 /**
+ * Return the averange number of dumps it takes to trigger major
+ * compaction of a range in this LSM tree.
+ */
+static inline int
+vy_lsm_dumps_per_compaction(struct vy_lsm *lsm)
+{
+	return lsm->sum_dumps_per_compaction / lsm->range_count;
+}
+
+/**
  * Increment the reference counter of an LSM tree.
  * An LSM tree cannot be deleted if its reference
  * counter is elevated.
@@ -438,6 +450,10 @@ vy_lsm_generation(struct vy_lsm *lsm);
 int
 vy_lsm_compaction_priority(struct vy_lsm *lsm);
 
+/** Return the target size of a range in an LSM tree. */
+int64_t
+vy_lsm_range_size(struct vy_lsm *lsm);
+
 /** Add a run to the list of runs of an LSM tree. */
 void
 vy_lsm_add_run(struct vy_lsm *lsm, struct vy_run *run);
@@ -464,8 +480,8 @@ vy_lsm_remove_range(struct vy_lsm *lsm, struct vy_range *range);
  * Account a range in an LSM tree.
  *
  * This function updates the following LSM tree statistics:
- *  - vy_lsm::run_hist after a slice is added to or removed from
- *    a range of the LSM tree.
+ *  - vy_lsm::run_hist and vy_lsm::sum_dumps_per_compaction after
+ *    a slice is added to or removed from a range of the LSM tree.
  *  - vy_lsm::stat::disk::compaction::queue after compaction priority
  *    of a range is updated.
  *  - vy_lsm::stat::disk::last_level_count after a range is compacted.

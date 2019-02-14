@@ -37,6 +37,8 @@
 #include "fiber.h"
 #include "errinj.h"
 
+#define MAX_HEADER_LEN 8192
+
 /**
  * libcurl callback for CURLOPT_WRITEFUNCTION
  * @see https://curl.haxx.se/libcurl/c/CURLOPT_WRITEFUNCTION.html
@@ -173,9 +175,14 @@ httpc_request_delete(struct httpc_request *req)
 int
 httpc_set_header(struct httpc_request *req, const char *fmt, ...)
 {
+	static __thread char header[MAX_HEADER_LEN + 1];
 	va_list ap;
 	va_start(ap, fmt);
-	const char *header = tt_vsprintf(fmt, ap);
+	int rc = vsnprintf(header, MAX_HEADER_LEN + 1, fmt, ap);
+	if (rc > MAX_HEADER_LEN) {
+		diag_set(IllegalParams, "header is too large");
+		return -1;
+	}
 	va_end(ap);
 
 	struct curl_slist *l = curl_slist_append(req->headers, header);
@@ -303,6 +310,12 @@ void
 httpc_set_ssl_cert(struct httpc_request *req, const char *ssl_cert)
 {
 	curl_easy_setopt(req->curl_request.easy, CURLOPT_SSLCERT, ssl_cert);
+}
+
+void
+httpc_set_interface(struct httpc_request *req, const char *interface)
+{
+	curl_easy_setopt(req->curl_request.easy, CURLOPT_INTERFACE, interface);
 }
 
 int
