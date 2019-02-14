@@ -207,11 +207,12 @@ applier_connect(struct applier *applier)
 	}
 
 	if (applier->version_id != greeting.version_id) {
-		say_info("remote master is %u.%u.%u at %s",
+		say_info("remote master %s at %s running Tarantool %u.%u.%u",
+			 tt_uuid_str(&greeting.uuid),
+			 sio_strfaddr(&applier->addr, applier->addr_len),
 			 version_id_major(greeting.version_id),
 			 version_id_minor(greeting.version_id),
-			 version_id_patch(greeting.version_id),
-			 sio_strfaddr(&applier->addr, applier->addr_len));
+			 version_id_patch(greeting.version_id));
 	}
 
 	/* Save the remote instance version and UUID on connect. */
