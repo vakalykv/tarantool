@@ -1661,6 +1661,7 @@ box_free(void)
 		sequence_free();
 		gc_free();
 		engine_shutdown();
+		iproto_socket_free();
 		wal_free();
 	}
 }

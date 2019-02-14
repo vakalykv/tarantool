@@ -2075,3 +2075,9 @@ iproto_set_msg_max(int new_iproto_msg_max)
 	iproto_do_cfg(&cfg_msg);
 	cpipe_set_max_input(&net_pipe, new_iproto_msg_max / 2);
 }
+
+void
+iproto_socket_free()
+{
+	evio_service_stop(&binary);
+}
